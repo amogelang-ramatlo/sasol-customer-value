@@ -1,10 +1,12 @@
 """Authoritative configuration and constants for the Sasol Customer Value project.
 
-All target rules, normalization factors, and class specifications match
-the competition rules documented in docs/label_config.json and docs/LABEL_RULES.md.
+All competition rules, normalization factors, calibration cutoffs, and opportunity classes
+are dynamically loaded from docs/competition/label_config.json to ensure a single source of truth.
 """
+
+import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Any
 
 # -----------------------------------------------------------------------------
 # Project Environment Paths
@@ -15,6 +17,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 DOCS_DIR = PROJECT_ROOT / "docs"
+COMPETITION_DOCS_DIR = DOCS_DIR / "competition"
 NOTEBOOKS_DIR = PROJECT_ROOT / "notebooks"
 REPORTS_DIR = PROJECT_ROOT / "reports"
 SUBMISSIONS_DIR = PROJECT_ROOT / "submissions"
@@ -23,14 +26,51 @@ TESTS_DIR = PROJECT_ROOT / "tests"
 RAW_TRAIN_PATH = RAW_DATA_DIR / "train.csv"
 RAW_TEST_PATH = RAW_DATA_DIR / "test.csv"
 SAMPLE_SUBMISSION_PATH = RAW_DATA_DIR / "SampleSubmission.csv"
-LABEL_CONFIG_PATH = DOCS_DIR / "label_config.json"
+LABEL_CONFIG_PATH = COMPETITION_DOCS_DIR / "label_config.json"
+
 
 # -----------------------------------------------------------------------------
-# Competition Settings & Reproducibility
+# Dynamic Competition Rules Loader (docs/competition/label_config.json)
+# -----------------------------------------------------------------------------
+def load_competition_json() -> dict[str, Any]:
+    """Load competition configuration from authoritative JSON file."""
+    if not LABEL_CONFIG_PATH.exists():
+        raise FileNotFoundError(
+            f"Authoritative competition config not found at: {LABEL_CONFIG_PATH}"
+        )
+    with open(LABEL_CONFIG_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+_COMP_CONFIG = load_competition_json()
+
+# Authoritative Normalization Constants: z = ln(1 + y) / s
+NORMALIZATION_CONSTANTS: dict[str, float] = _COMP_CONFIG["normalization"]
+
+# Authoritative 17 Opportunity Labels
+OPPORTUNITY_LABELS: list[str] = _COMP_CONFIG["opportunity_labels"]
+
+# Historical quarterly snapshot cutoffs available in training history
+CALIBRATION_CUTOFFS: list[str] = _COMP_CONFIG["calibration_cutoffs"]
+
+# Minimum historical transactions strictly before cutoff for customer eligibility
+MINIMUM_HISTORICAL_TRANSACTIONS: int = _COMP_CONFIG["minimum_historical_transactions"]
+
+# Temporal Cutoffs
+PUBLIC_HISTORY_END_EXCLUSIVE: str = _COMP_CONFIG["public_history_end_exclusive"]
+OUTCOME_END_EXCLUSIVE: str = _COMP_CONFIG["outcome_end_exclusive"]
+
+# Adjustment items that do not contribute to targets or purchase activity
+ADJUSTMENT_ITEMS: list[str] = _COMP_CONFIG["adjustment_items"]
+
+# Category mapping dictionary
+CATEGORY_MAPPING: dict[str, Any] = _COMP_CONFIG["category_mapping"]
+
+# -----------------------------------------------------------------------------
+# Competition Settings & Column Identifiers
 # -----------------------------------------------------------------------------
 RANDOM_SEED: int = 42
 
-# Column identifiers
 ID_COL: str = "ID"
 TRANSACTION_ID_COL: str = "TransactionId"
 DATETIME_COL: str = "DateTimeZA"
@@ -39,83 +79,30 @@ DATETIME_COL: str = "DateTimeZA"
 TARGET_FUEL: str = "CLV_fuel"
 TARGET_NONFUEL: str = "CLV_nonfuel"
 TARGET_OPPORTUNITY: str = "Opportunity"
-SUBMISSION_COLUMNS: List[str] = [ID_COL, TARGET_FUEL, TARGET_NONFUEL, TARGET_OPPORTUNITY]
+SUBMISSION_COLUMNS: list[str] = [
+    ID_COL,
+    TARGET_FUEL,
+    TARGET_NONFUEL,
+    TARGET_OPPORTUNITY,
+]
 
 # -----------------------------------------------------------------------------
 # Evaluation Metric Weights
 # Final Score = 0.30 * RMSE(CLV_fuel) + 0.30 * RMSE(CLV_nonfuel) + 0.40 * WeightedF1(Opportunity)
 # -----------------------------------------------------------------------------
-METRIC_WEIGHTS: Dict[str, float] = {
+METRIC_WEIGHTS: dict[str, float] = {
     TARGET_FUEL: 0.30,
     TARGET_NONFUEL: 0.30,
     TARGET_OPPORTUNITY: 0.40,
 }
 
-# -----------------------------------------------------------------------------
-# Authoritative Target Normalization & Rules (docs/label_config.json)
-# Formula: z = ln(1 + y) / s
-# -----------------------------------------------------------------------------
-NORMALIZATION_CONSTANTS: Dict[str, float] = {
-    TARGET_FUEL: 2.352825386185113,
-    TARGET_NONFUEL: 2.4200904988927476,
-}
-
 # Precision scaling factor used in label_rules.py for exact currency calculation
 SCALE: int = 1_000_000
-
-# Minimum historical baskets required strictly before cutoff for customer eligibility
-MINIMUM_HISTORICAL_TRANSACTIONS: int = 3
-
-# Temporal Cutoffs
-PUBLIC_HISTORY_END_EXCLUSIVE: str = "2025-12-01"
-OUTCOME_END_EXCLUSIVE: str = "2026-03-01"
-
-# Historical quarterly cutoffs available in training history
-CALIBRATION_CUTOFFS: List[str] = [
-    "2024-09-01",
-    "2024-12-01",
-    "2025-03-01",
-    "2025-06-01",
-    "2025-09-01",
-]
 
 # Primary Out-Of-Time (OOT) local validation cutoff (mirrors the 3-month test window)
 DEFAULT_VAL_CUTOFF: str = "2025-09-01"
 
-# -----------------------------------------------------------------------------
-# Exclusions & Special Items
-# -----------------------------------------------------------------------------
-ADJUSTMENT_ITEMS: List[str] = [
-    "TOTAL/ROUNDING DISCO",
-    "PENSIONER DISCOUNT",
-    "WOW_PROMO",
-]
-
-EXCLUDED_CATEGORIES: List[str] = [
-    "Value added services",
-    "Print media",
-    "Carrier Bags",
-]
-
-# -----------------------------------------------------------------------------
-# Authoritative Opportunity Classes (Exactly 17 classes)
-# -----------------------------------------------------------------------------
-OPPORTUNITY_LABELS: List[str] = [
-    "Existing-category growth: Beverages",
-    "Existing-category growth: Food & beverage",
-    "Existing-category growth: Fuel",
-    "Existing-category growth: Other",
-    "Inactivity",
-    "New category adoption: Beverages",
-    "New category adoption: Braai & Ice",
-    "New category adoption: Breads & rolls",
-    "New category adoption: Confectionary",
-    "New category adoption: Food & beverage",
-    "New category adoption: Groceries",
-    "New category adoption: Ice-cream",
-    "New category adoption: Lubricants",
-    "New category adoption: Other",
-    "New category adoption: Snacking",
-    "New category adoption: Tobacco",
-    "Stable",
+# Excluded categories that do not count as activity under label rules
+EXCLUDED_CATEGORIES: list[str] = [
+    cat for cat, props in CATEGORY_MAPPING.items() if not props.get("included", True)
 ]

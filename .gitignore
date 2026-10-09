@@ -57,5 +57,6 @@ submissions/*
 # Logs & temp files
 *.log
 .pytest_cache/
+catboost_info/
 scratch/
 temp/
