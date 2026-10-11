@@ -7,6 +7,7 @@ and generate formatted, verified competition submissions for test.csv.
 import argparse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from sasol_customer_value.config import (
@@ -14,12 +15,28 @@ from sasol_customer_value.config import (
     ID_COL,
     PUBLIC_HISTORY_END_EXCLUSIVE,
     SUBMISSIONS_DIR,
+    TARGET_FUEL,
+    TARGET_NONFUEL,
+    TARGET_OPPORTUNITY,
 )
 from sasol_customer_value.data.loader import load_test_customers, load_transactions
-from sasol_customer_value.features.rfm import extract_rfm_features
+from sasol_customer_value.data.snapshots import build_features
 from sasol_customer_value.models.baseline import BaselinePipeline, prepare_snapshot
-from sasol_customer_value.models.ensemble import EnsemblePipeline
+from sasol_customer_value.models.ensemble import DEFAULT_OPP_BIASES, EnsemblePipeline
 from sasol_customer_value.utils.helpers import set_seed, validate_submission_format
+
+
+def get_default_monthly_cutoffs(val_cutoff: str) -> list[str]:
+    """All monthly cutoffs from 2024-07-01 whose 3-month outcome window ends <= val_cutoff."""
+    pool = [str(d.date()) for d in pd.date_range("2024-07-01", val_cutoff, freq="MS")]
+    val_ts = pd.Timestamp(val_cutoff)
+    return [
+        c
+        for c in pool
+        if (val_ts.year * 12 + val_ts.month)
+        - (pd.Timestamp(c).year * 12 + pd.Timestamp(c).month)
+        >= 3
+    ]
 
 
 def train_and_evaluate(
@@ -30,7 +47,7 @@ def train_and_evaluate(
 ) -> tuple[BaselinePipeline | EnsemblePipeline, dict[str, float]]:
     """Train pipeline on historical cutoffs and score on validation cutoff."""
     if train_cutoffs is None:
-        train_cutoffs = ["2024-12-01", "2025-03-01", "2025-06-01"]
+        train_cutoffs = get_default_monthly_cutoffs(val_cutoff)
 
     print(f"--> Building training snapshot(s) for: {train_cutoffs}")
     X_train_list, y_train_list = [], []
@@ -85,9 +102,9 @@ def generate_submission(
         f"--> Generating test features for {len(test_ids):,} customers as of {test_cutoff}..."
     )
 
-    X_test = extract_rfm_features(
+    X_test = build_features(
         transactions_df,
-        cutoff_date=test_cutoff,
+        cutoff=test_cutoff,
         customer_ids=test_ids,
     )
 
@@ -109,6 +126,83 @@ def generate_submission(
     return preds
 
 
+def generate_multiseed_submission(
+    transactions_df: pd.DataFrame,
+    X_train: pd.DataFrame,
+    y_train: pd.DataFrame,
+    seeds: list[int],
+    test_cutoff: str = PUBLIC_HISTORY_END_EXCLUSIVE,
+    output_path: Path | None = None,
+) -> pd.DataFrame:
+    """Train ensemble across multiple seeds and average predictions for lower variance."""
+    df_test = load_test_customers()
+    test_ids = pd.Index(df_test[ID_COL].astype(str))
+    print(
+        f"--> Generating test features for {len(test_ids):,} customers as of {test_cutoff}..."
+    )
+    X_test = build_features(
+        transactions_df,
+        cutoff=test_cutoff,
+        customer_ids=test_ids,
+    )
+
+    fuel_list: list[np.ndarray] = []
+    nonfuel_list: list[np.ndarray] = []
+    probs_list: list[np.ndarray] = []
+    classes: np.ndarray | None = None
+
+    for s in seeds:
+        print(f"    Fitting ensemble with seed {s}...")
+        pipeline = EnsemblePipeline(random_seed=s)
+        pipeline.fit(X_train, y_train)
+        f_pred, nf_pred, p_mat = pipeline.predict_components(X_test)
+        fuel_list.append(f_pred)
+        nonfuel_list.append(nf_pred)
+        probs_list.append(p_mat)
+        if classes is None:
+            classes = pipeline.classes_
+
+    avg_fuel = np.mean(fuel_list, axis=0)
+    avg_nonfuel = np.mean(nonfuel_list, axis=0)
+    avg_probs = np.mean(probs_list, axis=0)
+
+    # Calibrate Opportunity with DEFAULT_OPP_BIASES
+    assert classes is not None
+    bias_vec = np.array([DEFAULT_OPP_BIASES.get(c, 0.0) for c in classes], dtype=float)
+    log_probs = np.log(np.clip(avg_probs, 1e-9, 1.0)) + bias_vec
+    pred_opp = classes[log_probs.argmax(axis=1)].copy()
+
+    # Inactivity consistency check
+    if "days_since_last_visit" in X_test.columns:
+        inactive_mask = (
+            (avg_fuel < 0.10)
+            & (avg_nonfuel < 0.10)
+            & (X_test["days_since_last_visit"] > 60.0)
+        )
+        pred_opp[inactive_mask] = "Inactivity"
+
+    preds = pd.DataFrame(
+        {
+            ID_COL: X_test.index.astype(str),
+            TARGET_FUEL: avg_fuel,
+            TARGET_NONFUEL: avg_nonfuel,
+            TARGET_OPPORTUNITY: pred_opp,
+        }
+    )
+
+    preds = preds.set_index(ID_COL).reindex(test_ids).reset_index()
+    print("--> Verifying submission compliance...")
+    validate_submission_format(preds, expected_ids=list(test_ids))
+
+    if output_path is not None:
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        preds.to_csv(output_path, index=False)
+        print(f"[SUCCESS] Multi-seed submission saved to: {output_path}")
+
+    return preds
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Sasol model training & submission runner"
@@ -122,8 +216,8 @@ def main() -> None:
     parser.add_argument(
         "--train-cutoffs",
         nargs="+",
-        default=["2024-12-01", "2025-03-01", "2025-06-01"],
-        help="Historical cutoffs for training",
+        default=None,
+        help="Historical cutoffs for training (defaults to all monthly cutoffs ending <= val_cutoff)",
     )
     parser.add_argument(
         "--val-cutoff",
@@ -137,13 +231,26 @@ def main() -> None:
     )
     parser.add_argument(
         "--output",
-        default=str(SUBMISSIONS_DIR / "sub_ensemble_v2.csv"),
+        default=str(SUBMISSIONS_DIR / "sub_model_best1.csv"),
         help="Output submission CSV path",
     )
     parser.add_argument(
         "--eval-only",
         action="store_true",
         help="Run validation evaluation only without generating submission",
+    )
+    parser.add_argument(
+        "--refit-all",
+        action="store_true",
+        default=True,
+        help="Refit pipeline on all available snapshots (including val) before final submission",
+    )
+    parser.add_argument(
+        "--seeds",
+        nargs="+",
+        type=int,
+        default=None,
+        help="List of random seeds for multi-seed averaging (e.g. 42 100 2024 777 999)",
     )
 
     args = parser.parse_args()
@@ -160,12 +267,37 @@ def main() -> None:
     )
 
     if not args.eval_only:
-        generate_submission(
-            df_trans,
-            pipeline,
-            test_cutoff=args.cutoff,
-            output_path=Path(args.output),
+        full_cutoffs = get_default_monthly_cutoffs(args.cutoff)
+        print(
+            f"--> Refitting pipeline on all {len(full_cutoffs)} snapshots up to {args.val_cutoff} for final submission..."
         )
+        Xs_full, ys_full = [], []
+        for c in full_cutoffs:
+            Xc, yc = prepare_snapshot(df_trans, c)
+            Xs_full.append(Xc)
+            ys_full.append(yc)
+        X_full = pd.concat(Xs_full, ignore_index=True)
+        y_full = pd.concat(ys_full, ignore_index=True)
+
+        if args.seeds and len(args.seeds) > 1 and args.pipeline == "ensemble":
+            print(f"--> Running multi-seed bagging with seeds: {args.seeds}...")
+            generate_multiseed_submission(
+                df_trans,
+                X_full,
+                y_full,
+                seeds=args.seeds,
+                test_cutoff=args.cutoff,
+                output_path=Path(args.output),
+            )
+        else:
+            if args.refit_all:
+                pipeline.fit(X_full, y_full)
+            generate_submission(
+                df_trans,
+                pipeline,
+                test_cutoff=args.cutoff,
+                output_path=Path(args.output),
+            )
 
 
 if __name__ == "__main__":

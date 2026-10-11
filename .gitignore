@@ -54,6 +54,9 @@ reports/figures/*
 submissions/*
 !submissions/.gitkeep
 
+docs/experiments/*
+scratch/*
+
 # Logs & temp files
 *.log
 .pytest_cache/

@@ -21,7 +21,7 @@ from sasol_customer_value.features.behavioral import extract_behavioral_features
 from sasol_customer_value.features.rfm import extract_rfm_features
 
 SNAPSHOT_DIR = PROCESSED_DATA_DIR / "snapshots"
-FEATURE_VERSION = "v4"
+FEATURE_VERSION = "v6"
 
 
 def build_features(
@@ -32,7 +32,9 @@ def build_features(
     """Full feature matrix (RFM + behavioural) for the given customers at cutoff."""
     ids = pd.Index(customer_ids).astype(str)
     rfm = extract_rfm_features(transactions_df, cutoff_date=cutoff, customer_ids=ids)
-    beh = extract_behavioral_features(transactions_df, cutoff_date=cutoff, customer_ids=ids)
+    beh = extract_behavioral_features(
+        transactions_df, cutoff_date=cutoff, customer_ids=ids
+    )
     X = pd.concat([rfm, beh], axis=1)
     X.index.name = ID_COL
     return X

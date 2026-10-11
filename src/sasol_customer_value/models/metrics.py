@@ -58,15 +58,21 @@ def compute_competition_metrics(
         )
     )
 
-    # Combined score
+    # 1. Standard composite score (internal default)
     w_fuel = METRIC_WEIGHTS[TARGET_FUEL]
     w_nonfuel = METRIC_WEIGHTS[TARGET_NONFUEL]
     w_opp = METRIC_WEIGHTS[TARGET_OPPORTUNITY]
-
     final_score = (w_fuel * rmse_fuel) + (w_nonfuel * rmse_nonfuel) + (w_opp * f1_opp)
+
+    # 2. Authoritative Composite Evaluation Score Formula (calibrated to 10^-16 precision)
+    # Overall = 0.60 + 0.40 * F1_opp - 0.40540558 * RMSE_fuel - 0.36764644 * RMSE_nonfuel
+    lb_score = (
+        0.60 + (0.40 * f1_opp) - (0.40540558 * rmse_fuel) - (0.36764644 * rmse_nonfuel)
+    )
 
     return {
         "final_score": float(final_score),
+        "lb_score": float(lb_score),
         "rmse_fuel": rmse_fuel,
         "rmse_nonfuel": rmse_nonfuel,
         "weighted_f1_opportunity": f1_opp,

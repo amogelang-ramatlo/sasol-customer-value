@@ -55,7 +55,7 @@ class BaselinePipeline:
             random_state=self.random_seed,
             objective="multiclass",
             num_class=17,
-            class_weight="balanced",
+            class_weight=None,
             n_estimators=100,
             learning_rate=0.05,
             verbose=-1,
@@ -144,16 +144,23 @@ class BaselinePipeline:
 def prepare_snapshot(
     transactions_df: pd.DataFrame,
     cutoff_date: str,
+    use_behavioral: bool = True,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Generate both ground-truth targets and leak-free RFM features for a cutoff date.
+    """Generate both ground-truth targets and leak-free features for a cutoff date.
 
     Args:
         transactions_df: Loaded transaction DataFrame.
         cutoff_date: Snapshot cutoff (e.g. '2025-06-01' or '2025-09-01').
+        use_behavioral: If True, uses cached/built snapshot with RFM + behavioral features.
 
     Returns:
         Tuple of (X_features, y_targets).
     """
+    if use_behavioral:
+        from sasol_customer_value.data.snapshots import build_snapshot
+
+        return build_snapshot(transactions_df, cutoff=cutoff_date)
+
     _, y_norm = generate_cutoff_labels(transactions_df, cutoff_date)
     eligible_ids = pd.Index(y_norm[ID_COL].astype(str))
 

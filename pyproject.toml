@@ -1,7 +1,7 @@
 [project]
 name = "sasol-customer-value"
 version = "0.1.0"
-description = "Sasol Loyalty Customer Value & Opportunity Prediction on Zindi"
+description = "Sasol Loyalty Customer Value & Opportunity Prediction Platform"
 readme = "README.md"
 authors = [
     { name = "amogelang-ramatlo", email = "amogelang.ramatlo@gmail.com" }

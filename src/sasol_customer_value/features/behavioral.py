@@ -100,22 +100,26 @@ def extract_behavioral_features(
             f"fuel_litres_{w}": agg(in_w & is_fuel, "_qty"),
             f"store_rand_{w}": agg(in_w & is_store, "_amt"),
             f"baskets_{w}": agg(in_w, TRANSACTION_ID_COL, "nunique"),
-            f"store_baskets_{w}": agg(in_w & is_store & qualifying, TRANSACTION_ID_COL, "nunique"),
+            f"store_baskets_{w}": agg(
+                in_w & is_store & qualifying, TRANSACTION_ID_COL, "nunique"
+            ),
         }
         valid = window_valid(hi)
         for name, s in cols.items():
-            feats[name] = feats.index.map(s).fillna(0.0).astype(float) if valid else np.nan
+            feats[name] = (
+                feats.index.map(s).fillna(0.0).astype(float) if valid else np.nan
+            )
 
     feats["fuel_price_q1"] = feats["fuel_rand_q1"] / feats["fuel_litres_q1"].where(
         feats["fuel_litres_q1"] > 0
     )
     for base in ["fuel_rand", "store_rand", "baskets"]:
-        feats[f"{base}_q1_over_q2"] = np.log1p(feats[f"{base}_q1"].clip(lower=0)) - np.log1p(
-            feats[f"{base}_q2"].clip(lower=0)
-        )
-        feats[f"{base}_q1_over_ly"] = np.log1p(feats[f"{base}_q1"].clip(lower=0)) - np.log1p(
-            feats[f"{base}_ly"].clip(lower=0)
-        )
+        feats[f"{base}_q1_over_q2"] = np.log1p(
+            feats[f"{base}_q1"].clip(lower=0)
+        ) - np.log1p(feats[f"{base}_q2"].clip(lower=0))
+        feats[f"{base}_q1_over_ly"] = np.log1p(
+            feats[f"{base}_q1"].clip(lower=0)
+        ) - np.log1p(feats[f"{base}_ly"].clip(lower=0))
 
     # Growth hurdle for fuel: rand increment needed next quarter for fuel growth label
     base_fuel = feats["fuel_rand_q1"].clip(lower=0)
@@ -123,16 +127,26 @@ def extract_behavioral_features(
 
     # Average quarterly fuel spend over the customer's observed tenure
     first_seen = df.groupby(ID_COL)[time_col].min()
-    tenure_q = ((cutoff - feats.index.map(first_seen)).days / 91.3).to_numpy(dtype=float)
+    tenure_q = ((cutoff - feats.index.map(first_seen)).days / 91.3).to_numpy(
+        dtype=float
+    )
     tenure_q = np.clip(np.nan_to_num(tenure_q, nan=1.0), 1.0, None)
-    fuel_life = feats.index.map(agg(is_fuel_cat & in_cat, "_amt")).fillna(0.0).to_numpy(dtype=float)
-    store_life = feats.index.map(agg(is_store, "_amt")).fillna(0.0).to_numpy(dtype=float)
+    fuel_life = (
+        feats.index.map(agg(is_fuel_cat & in_cat, "_amt"))
+        .fillna(0.0)
+        .to_numpy(dtype=float)
+    )
+    store_life = (
+        feats.index.map(agg(is_store, "_amt")).fillna(0.0).to_numpy(dtype=float)
+    )
     feats["fuel_rand_per_quarter_avg"] = fuel_life / tenure_q
     feats["store_rand_per_quarter_avg"] = store_life / tenure_q
-    feats["fuel_q1_vs_avg"] = np.log1p(base_fuel) - np.log1p(feats["fuel_rand_per_quarter_avg"].clip(lower=0))
-    feats["store_q1_vs_avg"] = np.log1p(feats["store_rand_q1"].clip(lower=0)) - np.log1p(
-        feats["store_rand_per_quarter_avg"].clip(lower=0)
+    feats["fuel_q1_vs_avg"] = np.log1p(base_fuel) - np.log1p(
+        feats["fuel_rand_per_quarter_avg"].clip(lower=0)
     )
+    feats["store_q1_vs_avg"] = np.log1p(
+        feats["store_rand_q1"].clip(lower=0)
+    ) - np.log1p(feats["store_rand_per_quarter_avg"].clip(lower=0))
 
     # 3. Monthly series (last 6 months): fuel rands, store rands, baskets + trend slope
     month_ks = list(range(1, 7))
@@ -146,7 +160,9 @@ def extract_behavioral_features(
             piv = sub.groupby([ID_COL, "_k"])[col].nunique().unstack(fill_value=0)
         else:
             piv = sub.groupby([ID_COL, "_k"])[col].sum().unstack(fill_value=0.0)
-        piv = piv.reindex(index=feats.index, columns=month_ks, fill_value=0).astype(float)
+        piv = piv.reindex(index=feats.index, columns=month_ks, fill_value=0).astype(
+            float
+        )
         for k in month_ks:
             if not window_valid(k):
                 piv[k] = np.nan
@@ -158,66 +174,272 @@ def extract_behavioral_features(
         if valid_cols.sum() >= 3:
             yv, xv = y[:, valid_cols], x[valid_cols]
             xc = xv - xv.mean()
-            feats[f"{name}_slope_6m"] = ((yv - yv.mean(axis=1, keepdims=True)) * xc).sum(axis=1) / (xc**2).sum()
+            feats[f"{name}_slope_6m"] = (
+                (yv - yv.mean(axis=1, keepdims=True)) * xc
+            ).sum(axis=1) / (xc**2).sum()
         else:
             feats[f"{name}_slope_6m"] = np.nan
-        feats[f"{name}_active_months_6m"] = (piv[month_ks] > 0).sum(axis=1).astype(float)
+        feats[f"{name}_active_months_6m"] = (
+            (piv[month_ks] > 0).sum(axis=1).astype(float)
+        )
 
     # 4. Per-category: signed calendar-q1 spend (exact label baseline) + history baskets
     cat_df = df[in_cat]
     q1_spend = (
         cat_df[cat_df["_k"].between(1, 3)]
-        .groupby([ID_COL, "ItemCategoryLevel2"])["_amt"].sum()
+        .groupby([ID_COL, "ItemCategoryLevel2"])["_amt"]
+        .sum()
         .unstack(fill_value=0.0)
         .reindex(index=feats.index, columns=INCLUDED_CATEGORIES, fill_value=0.0)
     )
     hist_baskets = (
         cat_df[qualifying.loc[cat_df.index]]
-        .groupby([ID_COL, "ItemCategoryLevel2"])[TRANSACTION_ID_COL].nunique()
+        .groupby([ID_COL, "ItemCategoryLevel2"])[TRANSACTION_ID_COL]
+        .nunique()
         .unstack(fill_value=0)
         .reindex(index=feats.index, columns=INCLUDED_CATEGORIES, fill_value=0)
     )
+    extra: dict[str, pd.Series | np.ndarray] = {}
     q1_valid = window_valid(3)
     for cat in INCLUDED_CATEGORIES:
         s = _safe_name(cat)
-        feats[f"q1cat_{s}"] = q1_spend[cat].astype(float) if q1_valid else np.nan
-        feats[f"histbaskets_{s}"] = hist_baskets[cat].astype(float)
+        extra[f"q1cat_{s}"] = (
+            q1_spend[cat].astype(float) if q1_valid else pd.Series(np.nan, index=idx)
+        )
+        extra[f"histbaskets_{s}"] = hist_baskets[cat].astype(float)
 
     store_cats = [c for c in INCLUDED_CATEGORIES if c != "Fuel"]
-    feats["n_store_cats_never_bought"] = (hist_baskets[store_cats] == 0).sum(axis=1).astype(float)
-    feats["n_store_cats_bought_once"] = (hist_baskets[store_cats] == 1).sum(axis=1).astype(float)
-    feats["n_cats_active_q1"] = (q1_spend > 0).sum(axis=1).astype(float)
-    feats["max_store_cat_q1"] = q1_spend[store_cats].max(axis=1).astype(float)
+    extra["n_store_cats_never_bought"] = (
+        (hist_baskets[store_cats] == 0).sum(axis=1).astype(float)
+    )
+    extra["n_store_cats_bought_once"] = (
+        (hist_baskets[store_cats] == 1).sum(axis=1).astype(float)
+    )
+    extra["n_cats_active_q1"] = (q1_spend > 0).sum(axis=1).astype(float)
+    extra["max_store_cat_q1"] = q1_spend[store_cats].max(axis=1).astype(float)
 
     # 5. Visit regularity (gaps between baskets) and recency relative to habit
     bt = (
-        df.groupby([ID_COL, TRANSACTION_ID_COL])[time_col].min().reset_index()
+        df.groupby([ID_COL, TRANSACTION_ID_COL])[time_col]
+        .min()
+        .reset_index()
         .sort_values([ID_COL, time_col])
     )
     bt["_gap"] = bt.groupby(ID_COL)[time_col].diff().dt.total_seconds() / 86400.0
     g = bt.dropna(subset=["_gap"]).groupby(ID_COL)["_gap"]
     gap_stats = pd.DataFrame(
-        {"gap_mean": g.mean(), "gap_std": g.std(), "gap_median": g.median(), "gap_max": g.max()}
+        {
+            "gap_mean": g.mean(),
+            "gap_std": g.std(),
+            "gap_median": g.median(),
+            "gap_max": g.max(),
+        }
     )
     gap_stats["gap_last"] = bt.dropna(subset=["_gap"]).groupby(ID_COL)["_gap"].last()
     for col in gap_stats.columns:
-        feats[col] = feats.index.map(gap_stats[col]).astype(float)
-    feats["gap_cv"] = feats["gap_std"] / feats["gap_mean"].clip(lower=0.5)
+        extra[col] = pd.Series(idx.map(gap_stats[col]), index=idx, dtype=float)
+    gap_mean_s = pd.Series(extra["gap_mean"], index=idx, dtype=float)
+    gap_std_s = pd.Series(extra["gap_std"], index=idx, dtype=float)
+    gap_med_s = pd.Series(extra["gap_median"], index=idx, dtype=float)
+    extra["gap_cv"] = (gap_std_s / gap_mean_s.clip(lower=0.5)).astype(float)
     last_visit = bt.groupby(ID_COL)[time_col].max()
-    days_since = (cutoff - feats.index.map(last_visit)).total_seconds() / 86400.0
-    feats["recency_over_median_gap"] = np.asarray(days_since, dtype=float) / feats["gap_median"].clip(lower=0.5)
+    days_since = (cutoff - idx.map(last_visit)).total_seconds() / 86400.0
+    extra["recency_over_median_gap"] = (
+        np.asarray(days_since, dtype=float) / gap_med_s.clip(lower=0.5)
+    ).astype(float)
     # Expected visits in a 91-day window given median gap
-    feats["expected_visits_next_q"] = 91.0 / feats["gap_median"].clip(lower=0.5)
+    extra["expected_visits_next_q"] = (91.0 / gap_med_s.clip(lower=0.5)).astype(float)
 
     # 6. Primary station loyalty
     loc = df.groupby([ID_COL, "LocationId"])[TRANSACTION_ID_COL].nunique()
     top = loc.groupby(level=0).max()
     tot = loc.groupby(level=0).sum()
-    feats["primary_station_share"] = feats.index.map(top / tot).astype(float)
+    extra["primary_station_share"] = pd.Series(
+        idx.map(top / tot), index=idx, dtype=float
+    )
 
     # 7. Returns / negative lines behaviour
-    feats["return_lines_share"] = feats.index.map(
-        (df["_amt"] < 0).groupby(df[ID_COL]).mean()
+    ret_mean = (df["_amt"] < 0).groupby(df[ID_COL]).mean()
+    extra["return_lines_share"] = pd.Series(idx.map(ret_mean), index=idx, dtype=float)
+
+    # 8. Store affinity & zero-spend separation (Option A)
+    df["_is_fuel"] = is_fuel
+    df["_is_store"] = is_store
+    df["_is_store_qual"] = is_store & qualifying
+    df["_store_spend"] = np.where(is_store, df["_amt"], 0.0)
+    df["_fuel_qty"] = np.where(is_fuel, df["_qty"], 0.0)
+
+    # Basket-level flags
+    basket_summary = (
+        df.groupby([ID_COL, TRANSACTION_ID_COL])
+        .agg(
+            _t=(time_col, "min"),
+            _has_fuel=("_is_fuel", "any"),
+            _has_store=("_is_store_qual", "any"),
+            _s_spend=("_store_spend", "sum"),
+            _f_qty=("_fuel_qty", "sum"),
+        )
+        .reset_index()
+    )
+
+    tot_b = (
+        basket_summary.groupby(ID_COL)[TRANSACTION_ID_COL]
+        .nunique()
+        .reindex(idx)
+        .fillna(0.0)
+        .clip(lower=1.0)
+    )
+    store_b = (
+        basket_summary[basket_summary["_has_store"]]
+        .groupby(ID_COL)[TRANSACTION_ID_COL]
+        .nunique()
+        .reindex(idx)
+        .fillna(0.0)
+    )
+    fuel_only_b = (
+        basket_summary[basket_summary["_has_fuel"] & ~basket_summary["_has_store"]]
+        .groupby(ID_COL)[TRANSACTION_ID_COL]
+        .nunique()
+        .reindex(idx)
+        .fillna(0.0)
+    )
+    extra["store_basket_ratio"] = (store_b / tot_b).astype(float)
+    extra["fuel_only_basket_ratio"] = (fuel_only_b / tot_b).astype(float)
+    extra["is_never_store_shopper"] = (store_b == 0).astype(float)
+
+    last_store = (
+        basket_summary[basket_summary["_has_store"]]
+        .groupby(ID_COL)["_t"]
+        .max()
+        .reindex(idx)
+    )
+    extra["days_since_last_store_basket"] = (
+        ((cutoff - last_store).dt.total_seconds() / 86400.0).fillna(999.0).astype(float)
+    )
+
+    t_30 = cutoff - pd.Timedelta(days=30)
+    t_90 = cutoff - pd.Timedelta(days=90)
+    t_180 = cutoff - pd.Timedelta(days=180)
+
+    s30 = (
+        basket_summary[(basket_summary["_t"] >= t_30) & basket_summary["_has_store"]]
+        .groupby(ID_COL)["_s_spend"]
+        .sum()
+        .reindex(idx)
+        .fillna(0.0)
+    )
+    s90 = (
+        basket_summary[(basket_summary["_t"] >= t_90) & basket_summary["_has_store"]]
+        .groupby(ID_COL)["_s_spend"]
+        .sum()
+        .reindex(idx)
+        .fillna(0.0)
+    )
+    extra["store_spend_30d_over_90d"] = (s30 / s90.clip(lower=1.0)).astype(float)
+    extra["store_active_last_30d"] = (s30 > 0).astype(float)
+    extra["store_active_last_90d"] = (s90 > 0).astype(float)
+
+    # 9. Growth hurdles & category spend acceleration (Option B)
+    f90 = (
+        basket_summary[(basket_summary["_t"] >= t_90) & basket_summary["_has_fuel"]]
+        .groupby(ID_COL)["_f_qty"]
+        .sum()
+        .reindex(idx)
+        .fillna(0.0)
+    )
+    fprev = (
+        basket_summary[
+            (basket_summary["_t"] >= t_180)
+            & (basket_summary["_t"] < t_90)
+            & basket_summary["_has_fuel"]
+        ]
+        .groupby(ID_COL)["_f_qty"]
+        .sum()
+        .reindex(idx)
+        .fillna(0.0)
+    )
+    extra["fuel_litres_accel_90_vs_prev90"] = (f90 - fprev).astype(float)
+    extra["fuel_litres_ratio_90_vs_prev90"] = ((f90 + 1.0) / (fprev + 1.0)).astype(
+        float
+    )
+    extra["fuel_candidate_growth_flag"] = ((f90 >= 1.25 * fprev) & (f90 > 0)).astype(
+        float
+    )
+
+    sprev = (
+        basket_summary[
+            (basket_summary["_t"] >= t_180)
+            & (basket_summary["_t"] < t_90)
+            & basket_summary["_has_store"]
+        ]
+        .groupby(ID_COL)["_s_spend"]
+        .sum()
+        .reindex(idx)
+        .fillna(0.0)
+    )
+    extra["store_spend_accel_90_vs_prev90"] = (s90 - sprev).astype(float)
+    extra["store_candidate_growth_flag"] = (
+        ((s90 - sprev) >= 20.0) & (s90 >= 1.25 * sprev) & (s90 > 0)
     ).astype(float)
 
-    return feats
+    # 10. Commuter personas & temporal patterns (Option C)
+    dow = basket_summary["_t"].dt.dayofweek
+    hour = basket_summary["_t"].dt.hour
+    we_b = (
+        basket_summary[dow >= 5]
+        .groupby(ID_COL)[TRANSACTION_ID_COL]
+        .nunique()
+        .reindex(idx)
+        .fillna(0.0)
+    )
+    mo_b = (
+        basket_summary[hour.between(6, 9)]
+        .groupby(ID_COL)[TRANSACTION_ID_COL]
+        .nunique()
+        .reindex(idx)
+        .fillna(0.0)
+    )
+    mi_b = (
+        basket_summary[hour.between(10, 14)]
+        .groupby(ID_COL)[TRANSACTION_ID_COL]
+        .nunique()
+        .reindex(idx)
+        .fillna(0.0)
+    )
+    ev_b = (
+        basket_summary[hour.between(15, 19)]
+        .groupby(ID_COL)[TRANSACTION_ID_COL]
+        .nunique()
+        .reindex(idx)
+        .fillna(0.0)
+    )
+    extra["weekend_basket_share"] = (we_b / tot_b).astype(float)
+    extra["morning_commute_share"] = (mo_b / tot_b).astype(float)
+    extra["midday_basket_share"] = (mi_b / tot_b).astype(float)
+    extra["evening_commute_share"] = (ev_b / tot_b).astype(float)
+
+    # 11. Customer Shopper Personas (Fuel-Only, Store-Only, Dual/Both)
+    tot_f_qty = df.groupby(ID_COL)["_fuel_qty"].sum().reindex(idx).fillna(0.0)
+    tot_s_spend = df.groupby(ID_COL)["_store_spend"].sum().reindex(idx).fillna(0.0)
+    has_life_f = tot_f_qty > 0
+    has_life_s = tot_s_spend > 0
+
+    extra["is_fuel_only_buyer_lifetime"] = (has_life_f & ~has_life_s).astype(float)
+    extra["is_store_only_buyer_lifetime"] = (~has_life_f & has_life_s).astype(float)
+    extra["is_dual_buyer_lifetime"] = (has_life_f & has_life_s).astype(float)
+
+    has_90d_f = f90 > 0
+    has_90d_s = s90 > 0
+    extra["is_fuel_only_buyer_90d"] = (has_90d_f & ~has_90d_s).astype(float)
+    extra["is_store_only_buyer_90d"] = (~has_90d_f & has_90d_s).astype(float)
+    extra["is_dual_buyer_90d"] = (has_90d_f & has_90d_s).astype(float)
+
+    # Integer segment: 0=Inactive/Neither, 1=Fuel-only, 2=Store-only, 3=Dual
+    segment = np.zeros(len(idx), dtype=float)
+    segment[has_90d_f & ~has_90d_s] = 1.0
+    segment[~has_90d_f & has_90d_s] = 2.0
+    segment[has_90d_f & has_90d_s] = 3.0
+    extra["shopper_persona_segment_90d"] = segment
+
+    extra_df = pd.DataFrame(extra, index=idx)
+    return pd.concat([feats, extra_df], axis=1)

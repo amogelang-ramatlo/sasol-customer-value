@@ -23,12 +23,37 @@ from sasol_customer_value.config import (
 )
 from sasol_customer_value.models.metrics import compute_competition_metrics
 
+DEFAULT_OPP_BIASES: dict[str, float] = {
+    "Existing-category growth: Beverages": 1.1,
+    "Existing-category growth: Food & beverage": 1.2,
+    "Existing-category growth: Fuel": 0.15,
+    "Existing-category growth: Other": 0.6,
+    "Inactivity": 0.1,
+    "New category adoption: Beverages": 1.2,
+    "New category adoption: Braai & Ice": 0.5,
+    "New category adoption: Breads & rolls": 1.4,
+    "New category adoption: Confectionary": 0.3,
+    "New category adoption: Food & beverage": -0.5,
+    "New category adoption: Groceries": 1.0,
+    "New category adoption: Ice-cream": 1.4,
+    "New category adoption: Lubricants": 0.4,
+    "New category adoption: Other": 1.4,
+    "New category adoption: Snacking": -0.2,
+    "New category adoption: Tobacco": 0.8,
+    "Stable": 0.0,
+}
+
 
 @dataclass
 class EnsemblePipeline:
     """Multi-model ensemble pipeline for continuous spend and calibrated opportunity classification."""
 
     random_seed: int = RANDOM_SEED
+    class_weight: str | None = None
+    class_biases: dict[str, float] | None = field(
+        default_factory=lambda: dict(DEFAULT_OPP_BIASES)
+    )
+
     # Models
     lgb_fuel: lgb.LGBMRegressor = field(init=False)
     cb_fuel: CatBoostRegressor = field(init=False)
@@ -89,7 +114,7 @@ class EnsemblePipeline:
         self.opp_model = lgb.LGBMClassifier(
             random_state=self.random_seed,
             num_class=17,
-            class_weight="balanced",
+            class_weight=self.class_weight,
             n_estimators=120,
             learning_rate=0.04,
             verbose=-1,
@@ -126,27 +151,42 @@ class EnsemblePipeline:
 
         return self
 
-    def predict(self, X: pd.DataFrame) -> pd.DataFrame:
-        """Generate ensembled, calibrated predictions."""
+    def predict_components(
+        self, X: pd.DataFrame
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Return raw (pred_fuel, pred_nonfuel, opp_probs) before bias and postprocessing."""
         X_eval = X[self.feature_names_].copy()
 
-        # 1. Blend Fuel predictions
+        # 1. Blend Fuel predictions (optimal weights: CatBoost 0.55, XGBoost 0.25, LightGBM 0.20)
         p_lgb_f = np.clip(self.lgb_fuel.predict(X_eval), 0.0, None)
         p_cb_f = np.clip(self.cb_fuel.predict(X_eval), 0.0, None)
         p_xgb_f = np.clip(self.xgb_fuel.predict(X_eval), 0.0, None)
-        pred_fuel = 0.50 * p_lgb_f + 0.30 * p_cb_f + 0.20 * p_xgb_f
+        pred_fuel = 0.20 * p_lgb_f + 0.55 * p_cb_f + 0.25 * p_xgb_f
 
-        # 2. Blend Non-Fuel predictions
+        # 2. Blend Non-Fuel predictions (optimal weights: CatBoost 0.60, LightGBM 0.40)
         p_lgb_nf = np.clip(self.lgb_nonfuel.predict(X_eval), 0.0, None)
         p_cb_nf = np.clip(self.cb_nonfuel.predict(X_eval), 0.0, None)
-        p_xgb_nf = np.clip(self.xgb_nonfuel.predict(X_eval), 0.0, None)
-        pred_nonfuel = 0.50 * p_lgb_nf + 0.30 * p_cb_nf + 0.20 * p_xgb_nf
+        pred_nonfuel = 0.40 * p_lgb_nf + 0.60 * p_cb_nf
 
-        # 3. Opportunity probabilities & prediction
+        # 3. Opportunity probabilities
         probs = np.asarray(self.opp_model.predict_proba(X_eval))
-        pred_opp = self.classes_[probs.argmax(axis=1)]
+        return pred_fuel, pred_nonfuel, probs
 
-        # 4. Inactivity post-processing consistency
+    def predict(self, X: pd.DataFrame) -> pd.DataFrame:
+        """Generate ensembled, calibrated predictions."""
+        X_eval = X[self.feature_names_].copy()
+        pred_fuel, pred_nonfuel, probs = self.predict_components(X)
+
+        if self.class_biases:
+            bias_vec = np.array(
+                [self.class_biases.get(c, 0.0) for c in self.classes_], dtype=float
+            )
+            log_probs = np.log(np.clip(probs, 1e-9, 1.0)) + bias_vec
+            pred_opp = self.classes_[log_probs.argmax(axis=1)].copy()
+        else:
+            pred_opp = self.classes_[probs.argmax(axis=1)].copy()
+
+        # Inactivity post-processing consistency
         if "days_since_last_visit" in X_eval.columns:
             inactive_mask = (
                 (pred_fuel < 0.10)

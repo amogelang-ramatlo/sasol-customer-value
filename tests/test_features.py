@@ -44,3 +44,18 @@ def test_rfm_feature_shape_and_customers():
     assert "fuel_litres_last_30d" in feats.columns
     assert "nonfuel_spend_last_90d" in feats.columns
     assert (feats["days_since_last_visit"] >= 0).all()
+
+
+def test_build_features_full_suite():
+    """Verify combined build_features extracts all 225 features with zero null indices."""
+    from sasol_customer_value.data.snapshots import build_features
+
+    df = load_transactions(nrows=2000)
+    cutoff = "2024-09-01"
+    cust_ids = pd.Index(df["ID"].unique()[:5])
+
+    feats = build_features(df, cutoff=cutoff, customer_ids=cust_ids)
+
+    assert len(feats) == len(cust_ids)
+    assert feats.shape[1] == 225
+    assert not feats.index.isna().any()

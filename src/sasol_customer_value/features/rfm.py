@@ -8,6 +8,7 @@ import pandas as pd
 
 from sasol_customer_value.config import (
     ADJUSTMENT_ITEMS,
+    CATEGORY_MAPPING,
     DATETIME_COL,
     EXCLUDED_CATEGORIES,
     ID_COL,
@@ -189,9 +190,7 @@ def extract_rfm_features(
     # 8. Category-Level Presence & Baseline Window Spend (Last 90d comparison)
     # Checks each in-scope category for historical adoption and previous-quarter spend
     in_scope_cats = sorted(
-        c
-        for c in df["ItemCategoryLevel2"].unique()
-        if c not in EXCLUDED_CATEGORIES and c != ""
+        c for c, p in CATEGORY_MAPPING.items() if p.get("included", True)
     )
 
     # Filter to transactions with strictly positive quantity & amount
@@ -225,7 +224,9 @@ def extract_rfm_features(
     # Captures customer behavior in the corresponding 3-month season of the previous year
     t_season_start = cutoff - pd.DateOffset(years=1)
     t_season_end = t_season_start + pd.DateOffset(months=3)
-    seasonal_slice = df[(df[time_col] >= t_season_start) & (df[time_col] < t_season_end)]
+    seasonal_slice = df[
+        (df[time_col] >= t_season_start) & (df[time_col] < t_season_end)
+    ]
 
     if len(seasonal_slice) > 0:
         seasonal_baskets = seasonal_slice.groupby(ID_COL)[TRANSACTION_ID_COL].nunique()
@@ -240,17 +241,19 @@ def extract_rfm_features(
             seasonal_slice["LineItemType"] == "Sale_Fuel"
         )
         seasonal_fuel = seasonal_slice[fuel_mask].groupby(ID_COL)["Quantity"].sum()
-        feats["same_season_prior_year_fuel_litres"] = (
-            feats.index.map(seasonal_fuel).fillna(0.0)
-        )
+        feats["same_season_prior_year_fuel_litres"] = feats.index.map(
+            seasonal_fuel
+        ).fillna(0.0)
 
         nonfuel_mask = (
             ~seasonal_slice["ItemCategoryLevel2"].isin(["Fuel"] + EXCLUDED_CATEGORIES)
         ) & (seasonal_slice["TotalExclAmount"].notna())
-        seasonal_nonfuel = seasonal_slice[nonfuel_mask].groupby(ID_COL)["TotalExclAmount"].sum()
-        feats["same_season_prior_year_nonfuel_spend"] = (
-            feats.index.map(seasonal_nonfuel).fillna(0.0)
+        seasonal_nonfuel = (
+            seasonal_slice[nonfuel_mask].groupby(ID_COL)["TotalExclAmount"].sum()
         )
+        feats["same_season_prior_year_nonfuel_spend"] = feats.index.map(
+            seasonal_nonfuel
+        ).fillna(0.0)
     else:
         feats["same_season_prior_year_baskets"] = 0
         feats["same_season_prior_year_active"] = 0
@@ -271,4 +274,3 @@ def extract_rfm_features(
         feats[seasonal_cols] = float("nan")
 
     return feats
-
