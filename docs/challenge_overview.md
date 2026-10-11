@@ -7,11 +7,13 @@
 This challenge utilizes a **multi-metric evaluation** combining regression and classification objectives.
 
 ### Targets
+
 1. **`CLV_fuel`**: Log-transformed, normalized customer lifetime value (fuel volume in litres over a 3-month horizon). Evaluated with standard **RMSE**.
 2. **`CLV_nonfuel`**: Log-transformed, normalized customer lifetime value (non-fuel spend in rands over a 3-month horizon). Evaluated with standard **RMSE**.
 3. **`Opportunity`**: Combined opportunity type-and-category labels (including standalone `Inactivity` and `Stable`). Evaluated with **Weighted F1 Score**.
 
 ### Target Transformation Formula
+
 For both regression targets, raw 3-month customer totals $y$ are transformed into submission targets $z$:
 
 $$z = \frac{\ln(1 + y)}{s}$$
@@ -27,11 +29,11 @@ $$z = \frac{\ln(1 + y)}{s}$$
 
 $$\text{Final Score} = 0.3 \times \text{RMSE}_{\text{CLV\_fuel}} + 0.3 \times \text{RMSE}_{\text{CLV\_nonfuel}} + 0.4 \times \text{Weighted F1}_{\text{Opportunity}}$$
 
-| Component | Target Type | Evaluation Metric | Weight |
-|---|---|---|---|
-| `CLV_fuel` | Continuous ($z_{\text{fuel}}$) | RMSE | 0.30 |
-| `CLV_nonfuel` | Continuous ($z_{\text{nonfuel}}$) | RMSE | 0.40 / 0.30 (0.30) |
-| `Opportunity` | Multi-class Label | Weighted F1 | 0.40 |
+| Component     | Target Type                       | Evaluation Metric | Weight |
+| ------------- | --------------------------------- | ----------------- | ------ |
+| `CLV_fuel`    | Continuous ($z_{\text{fuel}}$)    | RMSE              | 0.30   |
+| `CLV_nonfuel` | Continuous ($z_{\text{nonfuel}}$) | RMSE              | 0.30   |
+| `Opportunity` | Multi-class Label                 | Weighted F1       | 0.40   |
 
 ---
 
@@ -63,6 +65,7 @@ $$\text{Final Score} = 0.3 \times \text{RMSE}_{\text{CLV\_fuel}} + 0.3 \times \t
 Here is a structured sequence to get off the ground quickly and avoid critical pipeline mistakes.
 
 ### Step 1: Data Audit & Baseline Sanity Check (Day 1)
+
 - **Confirm the scaling constant $s$:** Identify whether $s_{\text{fuel}}$ and $s_{\text{nonfuel}}$ are already provided in the starter pack, or if you need to extract them from the specified historical calibration subset.
 - **Inspect Target Distributions:**
   - Plot distributions of raw $y$ vs. transformed $z$.
@@ -72,13 +75,16 @@ Here is a structured sequence to get off the ground quickly and avoid critical p
   - Submit median/mean values for regression and the majority class for classification to ensure the submission format passes Zindi’s validator without errors.
 
 ### Step 2: Build a Local Validation Strategy (Day 1–2)
+
 Because this is a multi-target problem with potential temporal dynamics:
+
 - **Validation Split:** If customer records are time-based, use an **out-of-time (temporal) split** that mirrors the train-to-test cutoff. If strictly cross-sectional per customer, use a **Stratified K-Fold** stratified on the `Opportunity` label.
 - **Custom Metric Evaluator:** Write an evaluation function that mirrors the competition metric locally:
   $$\text{Score}_{\text{local}} = 0.3 \times \text{RMSE}(z_1, \hat{z}_1) + 0.3 \times \text{RMSE}(z_2, \hat{z}_2) + 0.4 \times \text{F1}_{\text{weighted}}(c, \hat{c})$$
-  *Never tune solely on public leaderboard feedback.*
+  _Never tune solely on public leaderboard feedback._
 
 ### Step 3: Minimal Viable Baseline Model (Day 2–3)
+
 - Use standard gradient boosting (LightGBM or CatBoost).
 - Train **three separate models**:
   1. `LGBMRegressor` for `CLV_fuel` (optimizing RMSE directly on $z$).
@@ -87,7 +93,9 @@ Because this is a multi-target problem with potential temporal dynamics:
 - Submit this baseline to establish your benchmark anchor on both local CV and the public leaderboard.
 
 ### Step 4: Iterative Feature Engineering (Days 4+)
+
 Focus where the business value lies:
+
 - **RFM Metrics:** Recency, Frequency, Monetary values split across fuel vs. non-fuel transactions (e.g., 30-day, 60-day, 90-day aggregations).
 - **Ratios & Proportions:** Non-fuel spend to fuel spend ratio, fuel volume per visit, transaction frequency trends (acceleration/deceleration).
 - **Activity flags:** Days since last purchase, churn risk signals (directly relevant to `Inactivity` and `Stable` labels).
