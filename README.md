@@ -4,7 +4,7 @@
 > **Repository:** `sasol-customer-value`  
 > **Package:** `sasol_customer_value` (`src/sasol_customer_value/`)  
 > **Target Horizon:** 3-Month Forward Rolling Evaluation Window  
-> **Evaluation Mode:** Local Out-Of-Time (OOT) Multi-Fold Rolling-Origin Validation  
+> **Evaluation Mode:** Local Out-Of-Time (OOT) Multi-Fold Rolling-Origin Validation
 
 ---
 
@@ -15,6 +15,7 @@ Sasol operates retail fuel forecourts and convenience stores (Sasol Delight) acr
 This repository implements an end-to-end, leak-free machine learning architecture to forecast customer value metrics and behavioral transitions over a forward 3-month window from granular, receipt-level point-of-sale transaction streams.
 
 ### Prediction Targets & Formulations
+
 For each customer, the pipeline forecasts three distinct targets across the outcome horizon:
 
 1. **`CLV_fuel` (Continuous Regression):**  
@@ -32,9 +33,10 @@ For each customer, the pipeline forecasts three distinct targets across the outc
    - Non-growth states: `Inactivity`, `Stable`
    - Existing-category growth (4 classes): `Beverages`, `Food & beverage`, `Fuel`, `Other`
    - New-category adoption (11 classes): `Beverages`, `Braai & Ice`, `Breads & rolls`, `Confectionary`, `Food & beverage`, `Groceries`, `Ice-cream`, `Lubricants`, `Other`, `Snacking`, `Tobacco`  
-   Evaluation Metric: Multiclass Weighted F1 Score ($F_{1,\text{weighted}}$). Weight: **0.40**.
+     Evaluation Metric: Multiclass Weighted F1 Score ($F_{1,\text{weighted}}$). Weight: **0.40**.
 
 ### Composite Objective Function
+
 $$\text{Score} = 0.60 + 0.40 \times F_{1,\text{weighted}}(\text{Opportunity}) - 0.40540558 \times \text{RMSE}(\text{Fuel}) - 0.36764644 \times \text{RMSE}(\text{Nonfuel})$$
 
 ---
@@ -42,6 +44,7 @@ $$\text{Score} = 0.60 + 0.40 \times F_{1,\text{weighted}}(\text{Opportunity}) - 
 ## 2. Model Architecture & Target Specialists (F, N, O)
 
 Because the competition evaluation targets are mutually independent, the platform implements a clean **Target-Decoupled Architecture** powered by three dedicated target specialists:
+
 - **Model F (`FuelModel`):** Specialist continuous regressor for `CLV_fuel` (normalized log fuel volume).
 - **Model N (`NonfuelModel`):** Specialist continuous regressor for `CLV_nonfuel` (normalized log convenience store spend).
 - **Model O (`OpportunityModel`):** Specialist multi-class committee classifier for `Opportunity` (17 mutually exclusive behavioral states).
@@ -49,18 +52,20 @@ Because the competition evaluation targets are mutually independent, the platfor
 ### Champion Solution Profiles
 
 #### 1. Zindi Leaderboard Champion: `sub_champion_zindi.csv`
-* **Model F (Fuel Specialist):** Weighted blend (0.50 LightGBM / 0.30 CatBoost / 0.20 XGBoost) trained on the clean 202-feature forecourt subspace (Seed 42).
-* **Model N (Store Spend Specialist):** Bagged ensemble (0.40 LightGBM / 0.60 CatBoost) trained on 218 features across 5 random seeds (`[42, 100, 2024, 777, 999]`). Multi-seed CatBoost regularization minimizes store spend residual error.
-* **Model O (Opportunity Specialist):** 5-seed committee majority consensus across three distinct feature representations (Model A on 202 features, Model B on 218 features, Model C on 225 features) calibrated with South African summer holiday class log-odds biases.
-* **Live Public Leaderboard Score:** **`0.31076` – `0.31144`** (Current Rank: **#26**).
-* **Primary Output:** `submissions/sub_champion_zindi.csv` *(alias: `sub_model_best1.csv`)*.
+
+- **Model F (Fuel Specialist):** Weighted blend (0.50 LightGBM / 0.30 CatBoost / 0.20 XGBoost) trained on the clean 202-feature forecourt subspace (Seed 42).
+- **Model N (Store Spend Specialist):** Bagged ensemble (0.40 LightGBM / 0.60 CatBoost) trained on 218 features across 5 random seeds (`[42, 100, 2024, 777, 999]`). Multi-seed CatBoost regularization minimizes store spend residual error.
+- **Model O (Opportunity Specialist):** 5-seed committee majority consensus across three distinct feature representations (Model A on 202 features, Model B on 218 features, Model C on 225 features) calibrated with South African summer holiday class log-odds biases.
+- **Live Public Leaderboard Score:** **`0.31076` – `0.31144`** (Current Rank: **#26**).
+- **Primary Output:** `submissions/sub_champion_zindi.csv` _(alias: `sub_model_best1.csv`)_.
 
 #### 2. Local Validation Champion: `sub_champion_local.csv`
-* **Model F (Fuel Specialist):** High-CatBoost blend (0.20 LightGBM / 0.55 CatBoost / 0.25 XGBoost) trained on 218 features strictly anchored to Seed 42.
-* **Model N (Store Spend Specialist):** 0.40 LightGBM / 0.60 CatBoost regressor on 218 features strictly anchored to Seed 42 with median imputation.
-* **Model O (Opportunity Specialist):** Pure single-seed (Seed 42) consensus majority vote across Model A (202), Model B (218), and Model C (225) with summer holiday log-odds biases.
-* **Local Validation Score:** **`0.28926`** on Sep–Nov 2025 cohort / **`0.27737`** 3-fold mean. Live Zindi LB: `0.30735` (Rank **#46**).
-* **Primary Output:** `submissions/sub_champion_local.csv` *(alias: `sub_model_best2.csv`)*.
+
+- **Model F (Fuel Specialist):** High-CatBoost blend (0.20 LightGBM / 0.55 CatBoost / 0.25 XGBoost) trained on 218 features strictly anchored to Seed 42.
+- **Model N (Store Spend Specialist):** 0.40 LightGBM / 0.60 CatBoost regressor on 218 features strictly anchored to Seed 42 with median imputation.
+- **Model O (Opportunity Specialist):** Pure single-seed (Seed 42) consensus majority vote across Model A (202), Model B (218), and Model C (225) with summer holiday log-odds biases.
+- **Local Validation Score:** **`0.28926`** on Sep–Nov 2025 cohort / **`0.27737`** 3-fold mean. Live Zindi LB: `0.30735` (Rank **#46**).
+- **Primary Output:** `submissions/sub_champion_local.csv` _(alias: `sub_model_best2.csv`)_.
 
 ---
 
@@ -74,14 +79,13 @@ sasol-customer-value/
 ├── uv.lock                                # Deterministic cryptographic lockfile
 │
 ├── docs/                                  # Documentation
-│   ├── PLAIN_ENGLISH_GUIDE.md             # Guide to till slips, basket totals & labels
+│   ├── challenge_overview_and_getting_started_guide.md
 │   └── competition/                       # Canonical competition reference files (read-only)
 │       ├── label_config.json              # Canonical single source of truth (SSOT)
 │       ├── DATA_DICTIONARY.md             # Dataset schema specifications
 │       ├── LABEL_RULES.md                 # Fixed-point target calculation rules
 │       ├── label_rules.py                 # Reference label generation logic
-│       ├── dataset_and_task_overview.md   # Task description
-│       └── challenge_overview_and_getting_started_guide.md
+│       └── dataset_and_task_overview.md   # Task description
 │
 ├── data/
 │   ├── raw/                               # Immutable raw transaction streams (train, test)
@@ -116,9 +120,7 @@ sasol-customer-value/
 ├── tests/                                 # Automated pytest test suite (15 passed)
 └── submissions/                           # Final verified competition submission candidates
     ├── sub_champion_zindi.csv             # Proven Leaderboard Champion (LB 0.31076 - 0.31144, #26)
-    ├── sub_champion_local.csv             # Local Validation Benchmark (LB 0.30735, #46)
-    ├── sub_model_best1.csv                # Reference alias for sub_champion_zindi.csv
-    └── sub_model_best2.csv                # Reference alias for sub_champion_local.csv
+    └── sub_champion_local.csv             # Local Validation Benchmark (LB 0.30735, #46)
 ```
 
 ---
@@ -141,25 +143,46 @@ uv run ruff check src/ tests/ scripts/
 
 ---
 
-## 5. Model Execution & Reproduction Instructions
+## 5. Workflow Execution & Reproduction Guide
 
-The platform provides unified, DRY execution scripts decoupled across the three competition targets (**Model F**, **Model N**, and **Model O**).
+The modeling lifecycle follows three logical stages:
 
-### Generate Competition Submissions (`scripts/assemble.py`)
+1. **Validation (`scripts/evaluate.py`):** Benchmark models across out-of-time historical folds with strict 3-month embargos.
+2. **Specialist Training (`scripts/train.py`):** Train individual models (Model F, Model N, Model O) on full historical data.
+3. **End-to-End Assembly (`scripts/assemble.py`):** Train all specialists, generate predictions for all 5,488 test customers, run 5-point schema verification, and save the final submission file.
 
-To assemble and verify submission files from scratch across all 15 historical monthly snapshots (65k rows):
+---
 
-```powershell
-# Generate Zindi Leaderboard Champion (#26: submissions/sub_champion_zindi.csv)
-uv run python scripts/assemble.py --config best_zindi
+### Step 1: Out-Of-Time (OOT) Validation (`scripts/evaluate.py`)
 
-# Generate Local Validation Champion (#46: submissions/sub_champion_local.csv)
-uv run python scripts/assemble.py --config best_local
+To guard against temporal target leakage, models are evaluated across a **Rolling-Origin Validation Harness with a Strict 3-Month Outcome Embargo**:
+
+```
+Historical Training Snapshots                          Val Cutoff      3-Month Outcome Window
+───────────────────────────────────────────────────────────┼─────────────────────────────────►
+[=================== Features (t < Cutoff) ===============)│[======= Ground Truth Labels ====)
+                                                           │
+Quarterly Fold 1:                                          2025-03-01   ->   2025-06-01
+Quarterly Fold 2:                                          2025-06-01   ->   2025-09-01
+Quarterly Fold 3:                                          2025-09-01   ->   2025-12-01
 ```
 
-### Modular Training by Target Specialist (`scripts/train.py`)
+Run validation across folds without touching test data:
 
-To train individual target specialists independently:
+```powershell
+# Evaluate all models across the 3 embargoed folds
+uv run python scripts/evaluate.py --config all
+
+# Or evaluate a specific configuration
+uv run python scripts/evaluate.py --config best_zindi
+uv run python scripts/evaluate.py --config best_local
+```
+
+---
+
+### Step 2: Modular Training by Target Specialist (`scripts/train.py`)
+
+Use `scripts/train.py` when developing, auditing, or fine-tuning specific target models independently across all 15 historical snapshots (65k rows):
 
 ```powershell
 # Train only Model F (Fuel Specialist)
@@ -175,41 +198,39 @@ uv run python scripts/train.py --config best_zindi --target O
 uv run python scripts/train.py --config best_zindi --target all
 ```
 
-### Validate Output Compliance
-Every generated prediction file is automatically verified by `scripts/assemble.py`, or can be checked manually:
+---
+
+### Step 3: End-to-End Submission Assembly (`scripts/assemble.py`)
+
+`scripts/assemble.py` is the **all-in-one production assembler**. It automatically:
+
+1. Calls `train.py` internally to fit all three specialists (**Model F**, **Model N**, **Model O**) on all 15 historical monthly snapshots (65k rows).
+2. Extracts test features for all 5,488 competition test customers as of `2025-12-01`.
+3. Merges the predictions into a unified submission DataFrame.
+4. Executes an automated **5-point compliance check** (row count, column schema, no NaN/inf, non-negative spend, valid classes).
+5. Writes the verified submission CSV to `submissions/`.
+
+```powershell
+# Generate Zindi Leaderboard Champion (#26: submissions/sub_champion_zindi.csv)
+uv run python scripts/assemble.py --config best_zindi
+
+# Generate Local Validation Champion (#46: submissions/sub_champion_local.csv)
+uv run python scripts/assemble.py --config best_local
+```
+
+#### Optional: Manual Submission Compliance Check
+
+You can also manually verify any submission CSV at any time:
+
 ```powershell
 uv run python -m sasol_customer_value.utils.helpers --verify-submission submissions/sub_champion_zindi.csv
 uv run python -m sasol_customer_value.utils.helpers --verify-submission submissions/sub_champion_local.csv
 ```
+
 Verification checks:
+
 1. Exactly 5,488 rows matching target customer IDs in identical order.
 2. Complete schema: `ID`, `CLV_fuel`, `CLV_nonfuel`, `Opportunity`.
 3. Zero null, NaN, or infinite values.
 4. Non-negative continuous spend ($z \ge 0.0$).
 5. Opportunity classes belong strictly to the 17 defined categories.
-
----
-
-## 6. Out-Of-Time (OOT) Validation Protocol (`scripts/evaluate.py`)
-
-To guard against temporal target leakage, models are validated using a **Rolling-Origin Out-Of-Time Validation Harness with a Strict 3-Month Outcome Embargo**:
-
-```
-Historical Training Snapshots                          Val Cutoff      3-Month Outcome Window
-───────────────────────────────────────────────────────────┼─────────────────────────────────►
-[=================== Features (t < Cutoff) ===============)│[======= Ground Truth Labels ====)
-                                                           │
-Quarterly Fold 1:                                          2025-03-01   ->   2025-06-01
-Quarterly Fold 2:                                          2025-06-01   ->   2025-09-01
-Quarterly Fold 3:                                          2025-09-01   ->   2025-12-01
-```
-
-To run the complete rolling-origin validation harness across all quarterly folds:
-```powershell
-# Evaluate all models across the 3 embargoed folds
-uv run python scripts/evaluate.py --config all
-
-# Or evaluate a specific configuration
-uv run python scripts/evaluate.py --config best_zindi
-uv run python scripts/evaluate.py --config best_local
-```
