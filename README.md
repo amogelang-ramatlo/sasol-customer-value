@@ -68,20 +68,13 @@ sasol-customer-value/
 │
 ├── docs/                                  # Documentation
 │   ├── PLAIN_ENGLISH_GUIDE.md             # Guide to till slips, basket totals & labels
-│   ├── competition/                       # Canonical competition reference files (read-only)
-│   │   ├── label_config.json              # Canonical single source of truth (SSOT)
-│   │   ├── DATA_DICTIONARY.md             # Dataset schema specifications
-│   │   ├── LABEL_RULES.md                 # Fixed-point target calculation rules
-│   │   └── label_rules.py                 # Reference label generation logic
-│   └── experiment/                        # Historical research archive
-│       ├── archived_experiments.md        # Comprehensive ledger of all 14 exploratory models
-│       ├── SUBMISSIONS_MANIFEST.md        # Historical submission log & benchmarks
-│       ├── COMPETITION_HANDOFF.md         # Internal development briefings
-│       ├── GEMINI.md                      # Engineering design history
-│       ├── notebooks/                     # Exploratory analysis & audit notebooks
-│       ├── scripts/                       # Archived exploration & ablation scripts
-│       ├── src/                           # Experimental model modules (hurdle regressor)
-│       └── submissions/                   # Historical intermediate outputs
+│   └── competition/                       # Canonical competition reference files (read-only)
+│       ├── label_config.json              # Canonical single source of truth (SSOT)
+│       ├── DATA_DICTIONARY.md             # Dataset schema specifications
+│       ├── LABEL_RULES.md                 # Fixed-point target calculation rules
+│       ├── label_rules.py                 # Reference label generation logic
+│       ├── dataset_and_task_overview.md   # Task description
+│       └── challenge_overview_and_getting_started_guide.md
 │
 ├── data/
 │   ├── raw/                               # Immutable raw transaction streams (train, test)
@@ -94,28 +87,29 @@ sasol-customer-value/
 │       │   ├── loader.py                  # NA literal preservation & string ID handling
 │       │   ├── labels.py                  # Fixed-point currency opportunity logic
 │       │   └── snapshots.py               # Leak-free monthly snapshot manager
-│       ├── features/                      # 100% leak-free, non-fragmented feature extraction
+│       ├── features/                      # 100% leak-free feature extraction
 │       │   ├── rfm.py                     # Recency, frequency, monetary & fuel volumes (68 feats)
 │       │   └── behavioral.py              # Inter-purchase cadence, station loyalty, personas (157 feats)
-│       ├── models/                        # Estimators, ensembles, metrics & validation
-│       │   ├── ensemble.py                # Core multi-model ensemble (LightGBM + CatBoost + XGBoost)
+│       ├── models/                        # Target specialist estimators & validation
+│       │   ├── fuel.py                    # Target F specialist (FuelModel)
+│       │   ├── nonfuel.py                 # Target N specialist (NonfuelModel)
+│       │   ├── opportunity.py             # Target O specialist (OpportunityModel)
+│       │   ├── ensemble.py                # Core multi-model ensemble definitions & bias dicts
 │       │   ├── metrics.py                 # Exact composite evaluation formula
 │       │   ├── validation.py              # Strict 3-month embargoed rolling-origin validator
 │       │   └── predict.py                 # Standard CLI inference pipeline
 │       └── utils/
 │           └── helpers.py                 # Automated 5-point submission compliance checker
 │
-├── scripts/                               # Production execution entrypoints
-│   ├── build_sub_model_best1.py           # Builds/trains Primary Flagship Model (sub_model_best1.csv)
-│   ├── build_sub_model_best2.py           # Builds/trains Secondary Single-Seed Model (sub_model_best2.csv)
-│   └── benchmark_embargoed_folds.py        # Runs multi-fold OOT rolling-origin validation
+├── scripts/                               # Production execution entrypoints (DRY & SSOT)
+│   ├── evaluate.py                        # Out-of-time (OOT) rolling-origin validation harness
+│   ├── train.py                           # Full historical dataset training across all snapshots
+│   └── assemble.py                        # Unified end-to-end submission assembler & verifier
 │
-├── tests/                                 # Automated pytest test suite (12 passed)
-└── submissions/                           # Final verified model outputs
-    ├── sub_model_best1.csv                # Primary solution output (from v14 target-decoupled)
-    ├── sub_model_best2.csv                # Secondary solution output (from v13 single-seed)
-    ├── sub_v14_all_star_synthesis.csv     # Retained reference baseline
-    └── sub_v13_single_seed.csv            # Retained reference baseline
+├── tests/                                 # Automated pytest test suite (15 passed)
+└── submissions/                           # Final verified competition submission candidates
+    ├── sub_model_best1.csv                # Primary solution (Zindi Champion: LB 0.31076 - 0.31144, #26)
+    └── sub_model_best2.csv                # Secondary solution (Local Validation Champion: 0.28926 / 0.27737)
 ```
 
 ---
@@ -140,21 +134,40 @@ uv run ruff check src/ tests/ scripts/
 
 ## 5. Model Execution & Reproduction Instructions
 
-### Generate the Primary Flagship Model
-To generate the primary target-decoupled model from verified components:
-```powershell
-uv run python scripts/build_sub_model_best1.py
-```
-*(To train all underlying models completely from scratch across all 15 historical monthly snapshots, pass `--train-from-scratch`)*.
+The platform provides unified, DRY execution scripts decoupled across the three competition targets (**F**, **N**, and **O**).
 
-### Generate the Secondary Single-Seed Model
-To train and evaluate the pure single-seed model strictly on **Seed 42**:
+### Generate Competition Submissions (`scripts/assemble.py`)
+
+To assemble and verify submission files from scratch across all 15 historical monthly snapshots (65k rows):
+
 ```powershell
-uv run python scripts/build_sub_model_best2.py --seed 42
+# Generate Model Best 1 (Zindi Leaderboard Champion: sub_model_best1.csv)
+uv run python scripts/assemble.py --config best_zindi
+
+# Generate Model Best 2 (Local Validation Champion: sub_model_best2.csv)
+uv run python scripts/assemble.py --config best_local
+```
+
+### Modular Training (`scripts/train.py`)
+
+To train individual target specialists independently:
+
+```powershell
+# Train only Target F (Fuel)
+uv run python scripts/train.py --config best_zindi --target F
+
+# Train only Target N (Non-fuel)
+uv run python scripts/train.py --config best_zindi --target N
+
+# Train only Target O (Opportunity)
+uv run python scripts/train.py --config best_zindi --target O
+
+# Train all targets
+uv run python scripts/train.py --config best_zindi --target all
 ```
 
 ### Validate Output Compliance
-Every generated prediction file is automatically verified against the 5 schema constraints:
+Every generated prediction file is automatically verified by `scripts/assemble.py`, or can be checked manually:
 ```powershell
 uv run python -m sasol_customer_value.utils.helpers --verify-submission submissions/sub_model_best1.csv
 uv run python -m sasol_customer_value.utils.helpers --verify-submission submissions/sub_model_best2.csv
@@ -168,7 +181,7 @@ Verification checks:
 
 ---
 
-## 6. Out-Of-Time (OOT) Validation Protocol
+## 6. Out-Of-Time (OOT) Validation Protocol (`scripts/evaluate.py`)
 
 To guard against temporal target leakage, models are validated using a **Rolling-Origin Out-Of-Time Validation Harness with a Strict 3-Month Outcome Embargo**:
 
@@ -184,12 +197,10 @@ Quarterly Fold 3:                                          2025-09-01   ->   202
 
 To run the complete rolling-origin validation harness across all quarterly folds:
 ```powershell
-uv run python scripts/benchmark_embargoed_folds.py
+# Evaluate all models across the 3 embargoed folds
+uv run python scripts/evaluate.py --config all
+
+# Or evaluate a specific configuration
+uv run python scripts/evaluate.py --config best_zindi
+uv run python scripts/evaluate.py --config best_local
 ```
-
----
-
-## 7. Historical Research Archive
-
-For complete documentation, hyperparameters, and lessons learned from the experimental iterations explored during model development, refer to:
-👉 [`docs/experiment/archived_experiments.md`](file:///docs/experiment/archived_experiments.md)
