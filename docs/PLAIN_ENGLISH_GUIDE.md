@@ -19,19 +19,19 @@ Specifically, for each customer, Sasol wants us to answer three practical questi
 
 ---
 
-## 2. The 3 Targets to Predict (In Everyday Terms)
+## 2. The 3 Targets & Specialist Models (Model F, Model N, Model O)
 
-### Target 1: `CLV_fuel` (Future Fuel Volume)
+### Target 1: `CLV_fuel` -> Model F (`FuelModel`)
 * **What it means:** The total volume of petrol or diesel (in litres) the customer will buy over the 3-month evaluation window.
 * **Why the formula $z = \frac{\ln(1 + \text{litres})}{2.3528}$?**  
   In real life, some drivers buy 20 litres a month, while taxi or fleet drivers might pump 2,000 litres. If our model tried to predict raw litres directly, a single huge customer would heavily distort the model's accuracy. Taking the natural logarithm ($\ln(1 + y)$) compresses extreme numbers, and dividing by the fixed constant $s_{\text{fuel}} = 2.3528$ scales everyone smoothly between roughly $0$ and $3$.
 
-### Target 2: `CLV_nonfuel` (Future Shop Spend)
+### Target 2: `CLV_nonfuel` -> Model N (`NonfuelModel`)
 * **What it means:** The total amount of money in South African Rands (ZAR) the customer spends inside the convenience store over the 3 months (excluding fuel).
 * **The scaling formula $z = \frac{\ln(1 + \text{rands})}{2.4201}$:**  
   Just like fuel litres, raw Rands are log-compressed and scaled by $s_{\text{nonfuel}} = 2.4201$ so large spenders do not dominate the scoring metric.
 
-### Target 3: `Opportunity` (Behavioral Trajectory / Commercial Opportunity)
+### Target 3: `Opportunity` -> Model O (`OpportunityModel`)
 For every customer, we must predict **exactly one label out of 17 possible options**. Think of this as categorizing the customer into the single best bucket describing their next 3 months:
 
 1. **`Inactivity`**: The customer vanished. They did not make a single qualifying purchase at Sasol during the 3 months. (Churn / lapsed loyalty member).

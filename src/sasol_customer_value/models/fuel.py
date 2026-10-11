@@ -26,35 +26,56 @@ class FuelModel:
             # Proven Zindi Leaderboard Champion: 0.50 LGB / 0.30 CB / 0.20 XGB on 202 features
             self.weights = (0.50, 0.30, 0.20)
             self.n_features = 202
+            self.m_lgb = lgb.LGBMRegressor(
+                n_estimators=150,
+                learning_rate=0.03,
+                random_state=self.seed,
+                verbose=-1,
+                n_jobs=-1,
+            )
+            self.m_cb = CatBoostRegressor(
+                iterations=250,
+                learning_rate=0.04,
+                random_seed=self.seed,
+                verbose=0,
+                thread_count=-1,
+            )
+            self.m_xgb = XGBRegressor(
+                n_estimators=150,
+                learning_rate=0.03,
+                max_depth=5,
+                random_state=self.seed,
+                n_jobs=-1,
+                verbosity=0,
+            )
         elif self.variant == "best_local":
-            # Local Validation Champion: CatBoost Heavy (0.55 CB / 0.25 XGB / 0.20 LGB)
+            # Original Local Validation Benchmark: 0.20 LGB / 0.55 CB / 0.25 XGB on 218 features
             self.weights = (0.20, 0.55, 0.25)
             self.n_features = 218
+            self.m_lgb = lgb.LGBMRegressor(
+                n_estimators=150,
+                learning_rate=0.03,
+                random_state=self.seed,
+                verbose=-1,
+                n_jobs=-1,
+            )
+            self.m_cb = CatBoostRegressor(
+                iterations=250,
+                learning_rate=0.04,
+                random_seed=self.seed,
+                verbose=0,
+                thread_count=-1,
+            )
+            self.m_xgb = XGBRegressor(
+                n_estimators=150,
+                learning_rate=0.03,
+                max_depth=5,
+                random_state=self.seed,
+                n_jobs=-1,
+                verbosity=0,
+            )
         else:
             raise ValueError(f"Unknown FuelModel variant: {self.variant}")
-
-        self.m_lgb = lgb.LGBMRegressor(
-            n_estimators=150,
-            learning_rate=0.03,
-            random_state=self.seed,
-            verbose=-1,
-            n_jobs=-1,
-        )
-        self.m_cb = CatBoostRegressor(
-            iterations=250,
-            learning_rate=0.04,
-            random_seed=self.seed,
-            verbose=0,
-            thread_count=-1,
-        )
-        self.m_xgb = XGBRegressor(
-            n_estimators=150,
-            learning_rate=0.03,
-            max_depth=5,
-            random_state=self.seed,
-            n_jobs=-1,
-            verbosity=0,
-        )
 
     def _select_features(self, X: pd.DataFrame) -> pd.DataFrame:
         cols = list(X.columns[: self.n_features])

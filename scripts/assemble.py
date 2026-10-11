@@ -27,9 +27,9 @@ def assemble_submission(config_name: str, output_path: Path | None = None) -> Pa
     SUBMISSIONS_DIR.mkdir(parents=True, exist_ok=True)
     if output_path is None:
         if config_name == "best_zindi":
-            output_path = SUBMISSIONS_DIR / "sub_model_best1.csv"
+            output_path = SUBMISSIONS_DIR / "sub_champion_zindi.csv"
         elif config_name == "best_local":
-            output_path = SUBMISSIONS_DIR / "sub_model_best2.csv"
+            output_path = SUBMISSIONS_DIR / "sub_champion_local.csv"
         else:
             output_path = SUBMISSIONS_DIR / f"sub_{config_name}.csv"
 

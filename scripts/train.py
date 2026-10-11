@@ -47,6 +47,12 @@ def train_production_models(config_name: str, target: str = "all") -> dict[str, 
         df_trans, cutoff=PUBLIC_HISTORY_END_EXCLUSIVE, customer_ids=pd.Index(test_ids)
     ).reindex(test_ids)
 
+    # Clean missing values using median imputation for best_local (matching original single-seed build)
+    if config_name == "best_local":
+        med_full = X_full.median()
+        X_full = X_full.fillna(med_full)
+        X_test = X_test.fillna(med_full)
+
     predictions: dict[str, pd.Series] = {}
 
     # Target F (Fuel)

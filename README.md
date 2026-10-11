@@ -39,21 +39,28 @@ $$\text{Score} = 0.60 + 0.40 \times F_{1,\text{weighted}}(\text{Opportunity}) - 
 
 ---
 
-## 2. Model Architecture & Selected Solutions
+## 2. Model Architecture & Target Specialists (F, N, O)
 
-Because the evaluation targets are evaluated independently, the platform implements a **Target Decoupled Architecture** pairing specialized regressors with calibrated consensus classification:
+Because the competition evaluation targets are mutually independent, the platform implements a clean **Target-Decoupled Architecture** powered by three dedicated target specialists:
+- **Model F (`FuelModel`):** Specialist continuous regressor for `CLV_fuel` (normalized log fuel volume).
+- **Model N (`NonfuelModel`):** Specialist continuous regressor for `CLV_nonfuel` (normalized log convenience store spend).
+- **Model O (`OpportunityModel`):** Specialist multi-class committee classifier for `Opportunity` (17 mutually exclusive behavioral states).
 
-### Primary Solution: Target-Decoupled Ensemble (`sub_model_best1.csv`)
-* **Fuel Spend Regressor (Model A):** Specialized 3-model weighted blend (0.50 LightGBM / 0.30 CatBoost / 0.20 XGBoost) trained on 202 features strictly anchored to Seed 42. Produces the lowest fuel spend error.
-* **Store Spend Regressor (Model B):** Bagged ensemble (0.40 LightGBM / 0.60 CatBoost) trained on 218 features across 5 random seeds (`[42, 100, 2024, 777, 999]`). CatBoost's depth regularizer minimizes non-fuel residual error.
-* **Opportunity Classification (Committee Consensus):** Discrete majority consensus among three distinct feature representations (Model A with 202 features, Model B with 218 features, and Model C with 225 features) with summer-calibrated class log-odds biases. Operates without artificial heuristic overrides, relying directly on the learned tree probabilities and committee majority vote.
-* **Output Path:** `submissions/sub_model_best1.csv` *(retained reference: `submissions/sub_v14_all_star_synthesis.csv`)*.
+### Champion Solution Profiles
 
-### Secondary Solution: Pure Single-Seed Committee (`sub_model_best2.csv`)
-* **Strict Seed 42 Execution:** Fully reproducible single-seed counterpart operating without multi-seed averaging.
-* **Mature 225-Feature Store:** Incorporates complete inter-purchase cadence (gap statistics, gap volatility), station loyalty concentration, and shopper personas.
-* **Committee Decision Voting:** Pure consensus majority vote across three feature models, serving as an un-bagged, sharp-boundary alternative.
-* **Output Path:** `submissions/sub_model_best2.csv` *(retained reference: `submissions/sub_v13_single_seed.csv`)*.
+#### 1. Zindi Leaderboard Champion: `sub_champion_zindi.csv`
+* **Model F (Fuel Specialist):** Weighted blend (0.50 LightGBM / 0.30 CatBoost / 0.20 XGBoost) trained on the clean 202-feature forecourt subspace (Seed 42).
+* **Model N (Store Spend Specialist):** Bagged ensemble (0.40 LightGBM / 0.60 CatBoost) trained on 218 features across 5 random seeds (`[42, 100, 2024, 777, 999]`). Multi-seed CatBoost regularization minimizes store spend residual error.
+* **Model O (Opportunity Specialist):** 5-seed committee majority consensus across three distinct feature representations (Model A on 202 features, Model B on 218 features, Model C on 225 features) calibrated with South African summer holiday class log-odds biases.
+* **Live Public Leaderboard Score:** **`0.31076` – `0.31144`** (Current Rank: **#26**).
+* **Primary Output:** `submissions/sub_champion_zindi.csv` *(alias: `sub_model_best1.csv`)*.
+
+#### 2. Local Validation Champion: `sub_champion_local.csv`
+* **Model F (Fuel Specialist):** High-CatBoost blend (0.20 LightGBM / 0.55 CatBoost / 0.25 XGBoost) trained on 218 features strictly anchored to Seed 42.
+* **Model N (Store Spend Specialist):** 0.40 LightGBM / 0.60 CatBoost regressor on 218 features strictly anchored to Seed 42 with median imputation.
+* **Model O (Opportunity Specialist):** Pure single-seed (Seed 42) consensus majority vote across Model A (202), Model B (218), and Model C (225) with summer holiday log-odds biases.
+* **Local Validation Score:** **`0.28926`** on Sep–Nov 2025 cohort / **`0.27737`** 3-fold mean. Live Zindi LB: `0.30735` (Rank **#46**).
+* **Primary Output:** `submissions/sub_champion_local.csv` *(alias: `sub_model_best2.csv`)*.
 
 ---
 
@@ -91,9 +98,9 @@ sasol-customer-value/
 │       │   ├── rfm.py                     # Recency, frequency, monetary & fuel volumes (68 feats)
 │       │   └── behavioral.py              # Inter-purchase cadence, station loyalty, personas (157 feats)
 │       ├── models/                        # Target specialist estimators & validation
-│       │   ├── fuel.py                    # Target F specialist (FuelModel)
-│       │   ├── nonfuel.py                 # Target N specialist (NonfuelModel)
-│       │   ├── opportunity.py             # Target O specialist (OpportunityModel)
+│       │   ├── fuel.py                    # Model F Specialist (FuelModel)
+│       │   ├── nonfuel.py                 # Model N Specialist (NonfuelModel)
+│       │   ├── opportunity.py             # Model O Specialist (OpportunityModel)
 │       │   ├── ensemble.py                # Core multi-model ensemble definitions & bias dicts
 │       │   ├── metrics.py                 # Exact composite evaluation formula
 │       │   ├── validation.py              # Strict 3-month embargoed rolling-origin validator
@@ -108,8 +115,10 @@ sasol-customer-value/
 │
 ├── tests/                                 # Automated pytest test suite (15 passed)
 └── submissions/                           # Final verified competition submission candidates
-    ├── sub_model_best1.csv                # Primary solution (Zindi Champion: LB 0.31076 - 0.31144, #26)
-    └── sub_model_best2.csv                # Secondary solution (Local Validation Champion: 0.28926 / 0.27737)
+    ├── sub_champion_zindi.csv             # Proven Leaderboard Champion (LB 0.31076 - 0.31144, #26)
+    ├── sub_champion_local.csv             # Local Validation Benchmark (LB 0.30735, #46)
+    ├── sub_model_best1.csv                # Reference alias for sub_champion_zindi.csv
+    └── sub_model_best2.csv                # Reference alias for sub_champion_local.csv
 ```
 
 ---
@@ -134,43 +143,43 @@ uv run ruff check src/ tests/ scripts/
 
 ## 5. Model Execution & Reproduction Instructions
 
-The platform provides unified, DRY execution scripts decoupled across the three competition targets (**F**, **N**, and **O**).
+The platform provides unified, DRY execution scripts decoupled across the three competition targets (**Model F**, **Model N**, and **Model O**).
 
 ### Generate Competition Submissions (`scripts/assemble.py`)
 
 To assemble and verify submission files from scratch across all 15 historical monthly snapshots (65k rows):
 
 ```powershell
-# Generate Model Best 1 (Zindi Leaderboard Champion: sub_model_best1.csv)
+# Generate Zindi Leaderboard Champion (#26: submissions/sub_champion_zindi.csv)
 uv run python scripts/assemble.py --config best_zindi
 
-# Generate Model Best 2 (Local Validation Champion: sub_model_best2.csv)
+# Generate Local Validation Champion (#46: submissions/sub_champion_local.csv)
 uv run python scripts/assemble.py --config best_local
 ```
 
-### Modular Training (`scripts/train.py`)
+### Modular Training by Target Specialist (`scripts/train.py`)
 
 To train individual target specialists independently:
 
 ```powershell
-# Train only Target F (Fuel)
+# Train only Model F (Fuel Specialist)
 uv run python scripts/train.py --config best_zindi --target F
 
-# Train only Target N (Non-fuel)
+# Train only Model N (Non-fuel Specialist)
 uv run python scripts/train.py --config best_zindi --target N
 
-# Train only Target O (Opportunity)
+# Train only Model O (Opportunity Specialist)
 uv run python scripts/train.py --config best_zindi --target O
 
-# Train all targets
+# Train all specialists
 uv run python scripts/train.py --config best_zindi --target all
 ```
 
 ### Validate Output Compliance
 Every generated prediction file is automatically verified by `scripts/assemble.py`, or can be checked manually:
 ```powershell
-uv run python -m sasol_customer_value.utils.helpers --verify-submission submissions/sub_model_best1.csv
-uv run python -m sasol_customer_value.utils.helpers --verify-submission submissions/sub_model_best2.csv
+uv run python -m sasol_customer_value.utils.helpers --verify-submission submissions/sub_champion_zindi.csv
+uv run python -m sasol_customer_value.utils.helpers --verify-submission submissions/sub_champion_local.csv
 ```
 Verification checks:
 1. Exactly 5,488 rows matching target customer IDs in identical order.
