@@ -17,6 +17,7 @@ from sasol_customer_value.config import (
     TARGET_FUEL,
     TARGET_NONFUEL,
     TARGET_OPPORTUNITY,
+    ModelVariant,
 )
 from sasol_customer_value.models.fuel import FuelModel
 from sasol_customer_value.models.metrics import compute_competition_metrics
@@ -30,7 +31,7 @@ from sasol_customer_value.models.validation import (
 )
 
 
-def evaluate_pipeline(config_name: str) -> pd.DataFrame:
+def evaluate_pipeline(config_name: ModelVariant) -> pd.DataFrame:
     """Run full 3-fold embargoed evaluation for the given configuration."""
     print("\n" + "=" * 80)
     print(f"RUNNING EMBARGOED EVALUATION FOR: {config_name.upper()}")
@@ -41,7 +42,9 @@ def evaluate_pipeline(config_name: str) -> pd.DataFrame:
     for train_cutoffs, val_cutoff in get_embargoed_folds():
         t0 = time.time()
         print(f"\n--> Fold: Val Cutoff = {val_cutoff}")
-        print(f"    Train Cutoffs ({len(train_cutoffs)}): {train_cutoffs[0]} to {train_cutoffs[-1]}")
+        print(
+            f"    Train Cutoffs ({len(train_cutoffs)}): {train_cutoffs[0]} to {train_cutoffs[-1]}"
+        )
 
         X_train, y_train, X_val, y_val = load_fold_data(train_cutoffs, val_cutoff)
         n_train, n_val = len(X_train), len(X_val)
@@ -97,16 +100,22 @@ def evaluate_pipeline(config_name: str) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Evaluate models across embargoed OOT folds")
+    parser = argparse.ArgumentParser(
+        description="Evaluate models across embargoed OOT folds"
+    )
     parser.add_argument(
         "--config",
-        choices=["best_zindi", "best_local", "all"],
+        choices=["best_zindi", "best_local", "champion_v2", "all"],
         default="all",
         help="Model configuration to evaluate",
     )
     args = parser.parse_args()
 
-    configs = ["best_zindi", "best_local"] if args.config == "all" else [args.config]
+    configs: list[ModelVariant] = (
+        ["best_zindi", "best_local", "champion_v2"]
+        if args.config == "all"
+        else [args.config]
+    )
     summaries = []
     for cfg in configs:
         summaries.append(evaluate_pipeline(cfg))

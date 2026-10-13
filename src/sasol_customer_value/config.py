@@ -6,7 +6,9 @@ are dynamically loaded from docs/competition/label_config.json to ensure a singl
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+
+ModelVariant = Literal["best_zindi", "best_local", "champion_v2"]
 
 # -----------------------------------------------------------------------------
 # Project Environment Paths
@@ -65,6 +67,17 @@ ADJUSTMENT_ITEMS: list[str] = _COMP_CONFIG["adjustment_items"]
 
 # Category mapping dictionary
 CATEGORY_MAPPING: dict[str, Any] = _COMP_CONFIG["category_mapping"]
+
+# Explicit scaling constants for target normalizations
+S_FUEL: float = float(NORMALIZATION_CONSTANTS["CLV_fuel"])
+S_NONFUEL: float = float(NORMALIZATION_CONSTANTS["CLV_nonfuel"])
+
+# Opportunity deterministic rule thresholds
+GROWTH_MIN_RAND: float = float(_COMP_CONFIG.get("growth_min_rand", 20.0))
+GROWTH_MIN_RELATIVE: float = float(_COMP_CONFIG.get("growth_min_relative", 0.25))
+GROWTH_MIN_PURCHASES: int = int(_COMP_CONFIG.get("growth_min_purchases", 1))
+ADOPTION_MIN_RAND: float = float(_COMP_CONFIG.get("adoption_min_rand", 0.0))
+ADOPTION_MIN_PURCHASES: int = int(_COMP_CONFIG.get("adoption_min_purchases", 1))
 
 # -----------------------------------------------------------------------------
 # Competition Settings & Column Identifiers

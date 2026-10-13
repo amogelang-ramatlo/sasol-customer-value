@@ -5,7 +5,6 @@ Continuous regression predicting normalized log-store merchandise spend:
 """
 
 from dataclasses import dataclass, field
-from typing import Literal
 
 import lightgbm as lgb
 import numpy as np
@@ -13,12 +12,14 @@ import pandas as pd
 from catboost import CatBoostRegressor
 from xgboost import XGBRegressor
 
+from sasol_customer_value.config import ModelVariant
+
 
 @dataclass
 class NonfuelModel:
     """Specialist estimator for CLV_nonfuel continuous regression."""
 
-    variant: Literal["best_zindi", "best_local"] = "best_zindi"
+    variant: ModelVariant = "best_zindi"
     seeds: list[int] = field(default_factory=lambda: [42])
 
     def __post_init__(self) -> None:
@@ -32,10 +33,17 @@ class NonfuelModel:
             self.weights = (0.40, 0.60, 0.0)
             self.n_features = 218
             self.seeds = [42]
+        elif self.variant == "champion_v2":
+            # Optimized 218-feature subspace with tuned weights (0.07 LGB, 0.93 CB) and 5-seed bagging
+            self.weights = (0.07, 0.93, 0.0)
+            self.n_features = 218
+            self.seeds = [42, 100, 2024, 777, 999]
         else:
             raise ValueError(f"Unknown NonfuelModel variant: {self.variant}")
 
-        self.models_: list[tuple[lgb.LGBMRegressor, CatBoostRegressor, XGBRegressor | None]] = []
+        self.models_: list[
+            tuple[lgb.LGBMRegressor, CatBoostRegressor, XGBRegressor | None]
+        ] = []
 
     def _select_features(self, X: pd.DataFrame) -> pd.DataFrame:
         cols = list(X.columns[: self.n_features])

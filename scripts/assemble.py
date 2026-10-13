@@ -17,12 +17,15 @@ from sasol_customer_value.config import (
     TARGET_FUEL,
     TARGET_NONFUEL,
     TARGET_OPPORTUNITY,
+    ModelVariant,
 )
 from sasol_customer_value.data.loader import load_test_customers
 from sasol_customer_value.utils.helpers import validate_submission_format
 
 
-def assemble_submission(config_name: str, output_path: Path | None = None) -> Path:
+def assemble_submission(
+    config_name: ModelVariant, output_path: Path | None = None
+) -> Path:
     """Train specialists, assemble submission, and validate compliance."""
     SUBMISSIONS_DIR.mkdir(parents=True, exist_ok=True)
     if output_path is None:
@@ -30,6 +33,8 @@ def assemble_submission(config_name: str, output_path: Path | None = None) -> Pa
             output_path = SUBMISSIONS_DIR / "sub_champion_zindi.csv"
         elif config_name == "best_local":
             output_path = SUBMISSIONS_DIR / "sub_champion_local.csv"
+        elif config_name == "champion_v2":
+            output_path = SUBMISSIONS_DIR / "sub_champion_v2.csv"
         else:
             output_path = SUBMISSIONS_DIR / f"sub_{config_name}.csv"
 
@@ -59,8 +64,12 @@ def assemble_submission(config_name: str, output_path: Path | None = None) -> Pa
     print(f"\n[SUCCESS] Submission assembled and verified at: {output_path}")
     print("\n--- Diagnostic Scorecard ---")
     print(f"Rows:               {len(sub):,}")
-    print(f"Mean CLV_fuel:      {sub['CLV_fuel'].mean():.4f} (std: {sub['CLV_fuel'].std():.4f})")
-    print(f"Mean CLV_nonfuel:   {sub['CLV_nonfuel'].mean():.4f} (std: {sub['CLV_nonfuel'].std():.4f})")
+    print(
+        f"Mean CLV_fuel:      {sub['CLV_fuel'].mean():.4f} (std: {sub['CLV_fuel'].std():.4f})"
+    )
+    print(
+        f"Mean CLV_nonfuel:   {sub['CLV_nonfuel'].mean():.4f} (std: {sub['CLV_nonfuel'].std():.4f})"
+    )
     print("\nOpportunity Class Distribution (Top 8):")
     print(sub["Opportunity"].value_counts().head(8))
     print("=" * 80)
@@ -71,9 +80,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Assemble production submissions")
     parser.add_argument(
         "--config",
-        choices=["best_zindi", "best_local"],
-        default="best_zindi",
-        help="Model configuration to assemble (best_zindi -> sub_model_best1.csv, best_local -> sub_model_best2.csv)",
+        choices=["best_zindi", "best_local", "champion_v2"],
+        default="champion_v2",
+        help="Model configuration to assemble (best_zindi, best_local, champion_v2)",
     )
     parser.add_argument(
         "--output",

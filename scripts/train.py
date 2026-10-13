@@ -16,6 +16,7 @@ from sasol_customer_value.config import (
     TARGET_FUEL,
     TARGET_NONFUEL,
     TARGET_OPPORTUNITY,
+    ModelVariant,
 )
 from sasol_customer_value.data.loader import load_test_customers, load_transactions
 from sasol_customer_value.data.snapshots import build_features, cached_paths
@@ -24,7 +25,9 @@ from sasol_customer_value.models.nonfuel import NonfuelModel
 from sasol_customer_value.models.opportunity import OpportunityModel
 
 
-def train_production_models(config_name: str, target: str = "all") -> dict[str, pd.Series]:
+def train_production_models(
+    config_name: ModelVariant, target: str = "all"
+) -> dict[str, pd.Series]:
     """Train on all 15 historical snapshots and generate test predictions."""
     t0 = time.time()
     print("=" * 80)
@@ -33,9 +36,15 @@ def train_production_models(config_name: str, target: str = "all") -> dict[str, 
 
     # 1. Load all 15 historical monthly snapshots
     print("--> 1. Loading all 15 historical training snapshots...")
-    cutoffs = [str(d.date()) for d in pd.date_range("2024-07-01", "2025-09-01", freq="MS")]
-    X_full = pd.concat([pd.read_parquet(cached_paths(c)[0]) for c in cutoffs], ignore_index=True)
-    y_full = pd.concat([pd.read_parquet(cached_paths(c)[1]) for c in cutoffs], ignore_index=True)
+    cutoffs = [
+        str(d.date()) for d in pd.date_range("2024-07-01", "2025-09-01", freq="MS")
+    ]
+    X_full = pd.concat(
+        [pd.read_parquet(cached_paths(c)[0]) for c in cutoffs], ignore_index=True
+    )
+    y_full = pd.concat(
+        [pd.read_parquet(cached_paths(c)[1]) for c in cutoffs], ignore_index=True
+    )
     print(f"       Loaded {len(X_full):,} rows across {X_full.shape[1]} features.")
 
     # 2. Extract test features
@@ -63,7 +72,9 @@ def train_production_models(config_name: str, target: str = "all") -> dict[str, 
         fuel_model.fit(X_full, y_full[TARGET_FUEL].to_numpy(dtype=float))
         pred_f = fuel_model.predict(X_test)
         predictions[TARGET_FUEL] = pd.Series(pred_f, index=test_ids)
-        print(f"       [DONE] Mean Fuel: {pred_f.mean():.4f} (std: {pred_f.std():.4f}, Elapsed: {time.time() - t_f:.1f}s)")
+        print(
+            f"       [DONE] Mean Fuel: {pred_f.mean():.4f} (std: {pred_f.std():.4f}, Elapsed: {time.time() - t_f:.1f}s)"
+        )
 
     # Target N (Non-fuel)
     if target in ["all", "N", "nonfuel"]:
@@ -73,7 +84,9 @@ def train_production_models(config_name: str, target: str = "all") -> dict[str, 
         nonfuel_model.fit(X_full, y_full[TARGET_NONFUEL].to_numpy(dtype=float))
         pred_nf = nonfuel_model.predict(X_test)
         predictions[TARGET_NONFUEL] = pd.Series(pred_nf, index=test_ids)
-        print(f"       [DONE] Mean Non-fuel: {pred_nf.mean():.4f} (std: {pred_nf.std():.4f}, Elapsed: {time.time() - t_nf:.1f}s)")
+        print(
+            f"       [DONE] Mean Non-fuel: {pred_nf.mean():.4f} (std: {pred_nf.std():.4f}, Elapsed: {time.time() - t_nf:.1f}s)"
+        )
 
     # Target O (Opportunity)
     if target in ["all", "O", "opportunity"]:
@@ -83,18 +96,22 @@ def train_production_models(config_name: str, target: str = "all") -> dict[str, 
         opp_model.fit(X_full, y_full[TARGET_OPPORTUNITY].astype(str).to_numpy())
         pred_opp = opp_model.predict(X_test)
         predictions[TARGET_OPPORTUNITY] = pd.Series(pred_opp, index=test_ids)
-        print(f"       [DONE] Classes: {len(np.unique(pred_opp))}, Top Class: {pd.Series(pred_opp).value_counts().index[0]} ({pd.Series(pred_opp).value_counts().iloc[0]}), Elapsed: {time.time() - t_o:.1f}s")
+        print(
+            f"       [DONE] Classes: {len(np.unique(pred_opp))}, Top Class: {pd.Series(pred_opp).value_counts().index[0]} ({pd.Series(pred_opp).value_counts().iloc[0]}), Elapsed: {time.time() - t_o:.1f}s"
+        )
 
     print(f"\n[SUCCESS] Production training completed in {time.time() - t0:.1f}s.")
     return predictions
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train production models on full historical data")
+    parser = argparse.ArgumentParser(
+        description="Train production models on full historical data"
+    )
     parser.add_argument(
         "--config",
-        choices=["best_zindi", "best_local"],
-        default="best_zindi",
+        choices=["best_zindi", "best_local", "champion_v2"],
+        default="champion_v2",
         help="Configuration to train",
     )
     parser.add_argument(

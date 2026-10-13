@@ -6,12 +6,12 @@ summer holiday calibrated log-odds biases, and majority committee voting.
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Literal
 
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
+from sasol_customer_value.config import ModelVariant
 from sasol_customer_value.models.ensemble import DEFAULT_OPP_BIASES
 
 
@@ -19,11 +19,11 @@ from sasol_customer_value.models.ensemble import DEFAULT_OPP_BIASES
 class OpportunityModel:
     """Specialist committee classifier for the 17-class Opportunity target."""
 
-    variant: Literal["best_zindi", "best_local"] = "best_zindi"
+    variant: ModelVariant = "best_zindi"
     seeds: list[int] = field(default_factory=lambda: [42])
 
     def __post_init__(self) -> None:
-        if self.variant == "best_zindi":
+        if self.variant in ["best_zindi", "champion_v2"]:
             # 5-Seed multi-architecture committee
             self.seeds_A = [42, 100, 2024, 777, 999]
             self.seeds_B = [42, 100, 2024, 777, 999]
@@ -92,10 +92,13 @@ class OpportunityModel:
     ) -> np.ndarray:
         """Average probabilities across models and apply summer log-odds biases."""
         if self.classes_ is None:
-            raise RuntimeError("OpportunityModel must be fitted before making predictions.")
+            raise RuntimeError(
+                "OpportunityModel must be fitted before making predictions."
+            )
         probs = np.mean([m.predict_proba(X_sub) for m in models], axis=0)
         bias_vec = np.array(
-            [float(DEFAULT_OPP_BIASES.get(str(c), 0.0)) for c in self.classes_], dtype=np.float64
+            [float(DEFAULT_OPP_BIASES.get(str(c), 0.0)) for c in self.classes_],
+            dtype=np.float64,
         )
         log_probs = np.log(np.clip(probs, 1e-9, 1.0)) + bias_vec
         return np.asarray(self.classes_[log_probs.argmax(axis=1)])
@@ -103,7 +106,9 @@ class OpportunityModel:
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         """Form committee majority consensus across Model A, B, and C."""
         if self.classes_ is None:
-            raise RuntimeError("OpportunityModel must be fitted before calling predict.")
+            raise RuntimeError(
+                "OpportunityModel must be fitted before calling predict."
+            )
 
         cols_202 = list(X.columns[:202])
         cols_218 = list(X.columns[:218])
