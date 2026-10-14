@@ -15,6 +15,7 @@ from catboost import CatBoostRegressor
 from xgboost import XGBRegressor
 
 from sasol_customer_value.config import (
+    DEFAULT_OPP_BIASES,
     ID_COL,
     RANDOM_SEED,
     TARGET_FUEL,
@@ -22,26 +23,6 @@ from sasol_customer_value.config import (
     TARGET_OPPORTUNITY,
 )
 from sasol_customer_value.models.metrics import compute_competition_metrics
-
-DEFAULT_OPP_BIASES: dict[str, float] = {
-    "Existing-category growth: Beverages": 1.1,
-    "Existing-category growth: Food & beverage": 1.2,
-    "Existing-category growth: Fuel": 0.15,
-    "Existing-category growth: Other": 0.6,
-    "Inactivity": 0.1,
-    "New category adoption: Beverages": 1.2,
-    "New category adoption: Braai & Ice": 0.5,
-    "New category adoption: Breads & rolls": 1.4,
-    "New category adoption: Confectionary": 0.3,
-    "New category adoption: Food & beverage": -0.5,
-    "New category adoption: Groceries": 1.0,
-    "New category adoption: Ice-cream": 1.4,
-    "New category adoption: Lubricants": 0.4,
-    "New category adoption: Other": 1.4,
-    "New category adoption: Snacking": -0.2,
-    "New category adoption: Tobacco": 0.8,
-    "Stable": 0.0,
-}
 
 
 @dataclass

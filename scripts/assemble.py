@@ -9,7 +9,6 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
-from train import train_production_models
 
 from sasol_customer_value.config import (
     ID_COL,
@@ -20,6 +19,7 @@ from sasol_customer_value.config import (
     ModelVariant,
 )
 from sasol_customer_value.data.loader import load_test_customers
+from sasol_customer_value.models.pipeline import train_production_models
 from sasol_customer_value.utils.helpers import validate_submission_format
 
 
@@ -35,6 +35,14 @@ def assemble_submission(
             output_path = SUBMISSIONS_DIR / "sub_champion_local.csv"
         elif config_name == "champion_v2":
             output_path = SUBMISSIONS_DIR / "sub_champion_v2.csv"
+        elif config_name == "champion_v3":
+            output_path = SUBMISSIONS_DIR / "sub_champion_v3.csv"
+        elif config_name == "champion_v4":
+            output_path = SUBMISSIONS_DIR / "sub_champion_v4.csv"
+        elif config_name == "champion_v5":
+            output_path = SUBMISSIONS_DIR / "sub_champion_v5.csv"
+        elif config_name == "champion_v6":
+            output_path = SUBMISSIONS_DIR / "sub_champion_v6.csv"
         else:
             output_path = SUBMISSIONS_DIR / f"sub_{config_name}.csv"
 
@@ -80,9 +88,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Assemble production submissions")
     parser.add_argument(
         "--config",
-        choices=["best_zindi", "best_local", "champion_v2"],
-        default="champion_v2",
-        help="Model configuration to assemble (best_zindi, best_local, champion_v2)",
+        choices=[
+            "best_zindi",
+            "best_local",
+            "champion_v2",
+            "champion_v3",
+            "champion_v4",
+            "champion_v5",
+            "champion_v6",
+        ],
+        default="champion_v6",
+        help="Model configuration to assemble (best_zindi, best_local, champion_v2, champion_v3, champion_v4, champion_v5, champion_v6)",
     )
     parser.add_argument(
         "--output",

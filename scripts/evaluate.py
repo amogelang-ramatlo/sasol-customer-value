@@ -19,6 +19,8 @@ from sasol_customer_value.config import (
     TARGET_OPPORTUNITY,
     ModelVariant,
 )
+from sasol_customer_value.data.snapshots import cached_paths
+from sasol_customer_value.features.hurdles import compute_snapshot_weights
 from sasol_customer_value.models.fuel import FuelModel
 from sasol_customer_value.models.metrics import compute_competition_metrics
 from sasol_customer_value.models.nonfuel import NonfuelModel
@@ -41,6 +43,12 @@ def evaluate_pipeline(config_name: ModelVariant) -> pd.DataFrame:
 
     for train_cutoffs, val_cutoff in get_embargoed_folds():
         t0 = time.time()
+        if config_name == "champion_v6":
+            mature_train = [c for c in train_cutoffs if c >= "2024-10-01"]
+            if len(mature_train) >= 3:
+                train_cutoffs = mature_train
+            else:
+                train_cutoffs = train_cutoffs[-3:]
         print(f"\n--> Fold: Val Cutoff = {val_cutoff}")
         print(
             f"    Train Cutoffs ({len(train_cutoffs)}): {train_cutoffs[0]} to {train_cutoffs[-1]}"
@@ -55,7 +63,18 @@ def evaluate_pipeline(config_name: ModelVariant) -> pd.DataFrame:
 
         # 1. Model F (Fuel)
         fuel_model = FuelModel(variant=config_name)
-        fuel_model.fit(X_train, y_f_train)
+        if config_name == "champion_v3":
+            val_dt = pd.Timestamp(val_cutoff)
+            snap_cutoffs = []
+            for c in train_cutoffs:
+                xp, _ = cached_paths(c)
+                snap_cutoffs.extend([c] * len(pd.read_parquet(xp)))
+            weights_f = compute_snapshot_weights(
+                snap_cutoffs, target_month_day=(val_dt.month, val_dt.day)
+            )
+            fuel_model.fit(X_train, y_f_train, sample_weight=weights_f)
+        else:
+            fuel_model.fit(X_train, y_f_train)
         pred_f = fuel_model.predict(X_val)
 
         # 2. Model N (Non-fuel)
@@ -105,14 +124,31 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--config",
-        choices=["best_zindi", "best_local", "champion_v2", "all"],
-        default="all",
+        choices=[
+            "best_zindi",
+            "best_local",
+            "champion_v2",
+            "champion_v3",
+            "champion_v4",
+            "champion_v5",
+            "champion_v6",
+            "all",
+        ],
+        default="champion_v6",
         help="Model configuration to evaluate",
     )
     args = parser.parse_args()
 
     configs: list[ModelVariant] = (
-        ["best_zindi", "best_local", "champion_v2"]
+        [
+            "best_zindi",
+            "best_local",
+            "champion_v2",
+            "champion_v3",
+            "champion_v4",
+            "champion_v5",
+            "champion_v6",
+        ]
         if args.config == "all"
         else [args.config]
     )

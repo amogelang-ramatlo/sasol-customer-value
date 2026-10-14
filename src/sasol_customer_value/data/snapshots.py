@@ -84,3 +84,27 @@ def cached_paths(cutoff: str) -> tuple[Path, Path]:
         SNAPSHOT_DIR / f"X_{FEATURE_VERSION}_{cutoff}.parquet",
         SNAPSHOT_DIR / f"y_{cutoff}.parquet",
     )
+
+
+def load_stacked_snapshots(
+    cutoffs: list[str],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load and stack multiple cached snapshot parquets into unified training matrices.
+
+    Args:
+        cutoffs: List of snapshot cutoff date strings (e.g. ['2024-07-01', ...]).
+
+    Returns:
+        Tuple of (X_stacked, y_stacked) containing combined feature and label rows.
+    """
+    x_list: list[pd.DataFrame] = []
+    y_list: list[pd.DataFrame] = []
+    for c in cutoffs:
+        xp, yp = cached_paths(c)
+        if not xp.exists() or not yp.exists():
+            raise FileNotFoundError(f"Missing cached snapshot for cutoff {c}")
+        x_list.append(pd.read_parquet(xp))
+        y_list.append(pd.read_parquet(yp))
+    X_stacked = pd.concat(x_list, ignore_index=True)
+    y_stacked = pd.concat(y_list, ignore_index=True)
+    return X_stacked, y_stacked

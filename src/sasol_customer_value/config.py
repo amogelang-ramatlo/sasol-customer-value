@@ -8,7 +8,15 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
-ModelVariant = Literal["best_zindi", "best_local", "champion_v2"]
+ModelVariant = Literal[
+    "best_zindi",
+    "best_local",
+    "champion_v2",
+    "champion_v3",
+    "champion_v4",
+    "champion_v5",
+    "champion_v6",
+]
 
 # -----------------------------------------------------------------------------
 # Project Environment Paths
@@ -109,6 +117,17 @@ METRIC_WEIGHTS: dict[str, float] = {
     TARGET_OPPORTUNITY: 0.40,
 }
 
+# Bagging seeds and Opportunity class counts for specialist models
+DEFAULT_BAGGING_SEEDS: list[int] = [42, 100, 2024, 777, 999]
+N_OPPORTUNITY_CLASSES: int = len(OPPORTUNITY_LABELS)
+
+# Official competition leaderboard composite score parameters:
+# Composite = COMPOSITE_OFFSET + COMPOSITE_W_OPP * F1 - COMPOSITE_COEFF_FUEL * RMSE_fuel - COMPOSITE_COEFF_NONFUEL * RMSE_nonfuel
+COMPOSITE_OFFSET: float = 0.60
+COMPOSITE_W_OPP: float = 0.40
+COMPOSITE_COEFF_FUEL: float = 0.40540558
+COMPOSITE_COEFF_NONFUEL: float = 0.36764644
+
 # Precision scaling factor used in label_rules.py for exact currency calculation
 SCALE: int = 1_000_000
 
@@ -119,3 +138,53 @@ DEFAULT_VAL_CUTOFF: str = "2025-09-01"
 EXCLUDED_CATEGORIES: list[str] = [
     cat for cat, props in CATEGORY_MAPPING.items() if not props.get("included", True)
 ]
+
+# All available historical monthly training snapshots in released dataset
+HISTORICAL_SNAPSHOT_CUTOFFS: list[str] = [
+    "2024-07-01",
+    "2024-08-01",
+    "2024-09-01",
+    "2024-10-01",
+    "2024-11-01",
+    "2024-12-01",
+    "2025-01-01",
+    "2025-02-01",
+    "2025-03-01",
+    "2025-04-01",
+    "2025-05-01",
+    "2025-06-01",
+    "2025-07-01",
+    "2025-08-01",
+    "2025-09-01",
+]
+
+# Mature historical snapshots where cohort churn has stabilized (excludes early immature 2024-07 to 2024-09 snapshots)
+MATURE_SNAPSHOT_CUTOFFS: list[str] = [
+    c for c in HISTORICAL_SNAPSHOT_CUTOFFS if c >= "2024-10-01"
+]
+
+# Authoritative summer festive calibrated log-odds biases for 17-class Opportunity
+DEFAULT_OPP_BIASES: dict[str, float] = {
+    "Existing-category growth: Beverages": 1.1,
+    "Existing-category growth: Food & beverage": 1.2,
+    "Existing-category growth: Fuel": 0.15,
+    "Existing-category growth: Other": 0.6,
+    "Inactivity": 0.1,
+    "New category adoption: Beverages": 1.2,
+    "New category adoption: Braai & Ice": 0.5,
+    "New category adoption: Breads & rolls": 1.4,
+    "New category adoption: Confectionary": 0.3,
+    "New category adoption: Food & beverage": -0.5,
+    "New category adoption: Groceries": 1.0,
+    "New category adoption: Ice-cream": 1.4,
+    "New category adoption: Lubricants": 0.4,
+    "New category adoption: Other": 1.4,
+    "New category adoption: Snacking": -0.2,
+    "New category adoption: Tobacco": 0.8,
+    "Stable": 0.0,
+}
+
+
+def sanitize_category_name(cat: str) -> str:
+    """Consistently sanitize raw category names for feature column naming across modules."""
+    return cat.replace(" ", "_").replace("&", "and").replace("-", "_")

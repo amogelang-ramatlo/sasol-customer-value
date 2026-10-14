@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from sasol_customer_value.data.snapshots import cached_paths
+from sasol_customer_value.data.snapshots import cached_paths, load_stacked_snapshots
 
 # All available monthly snapshot cutoffs in the released dataset
 ALL_CUTOFFS: list[str] = [
@@ -64,18 +64,7 @@ def load_fold_data(
     train_cutoffs: list[str], val_cutoff: str
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Load cached feature and label parquets for the given train cutoffs and val cutoff."""
-    x_train_list, y_train_list = [], []
-    for c in train_cutoffs:
-        xp, yp = cached_paths(c)
-        if not xp.exists() or not yp.exists():
-            raise FileNotFoundError(
-                f"Missing cached snapshot parquet for {c}: {xp}, {yp}"
-            )
-        x_train_list.append(pd.read_parquet(xp))
-        y_train_list.append(pd.read_parquet(yp))
-
-    X_train = pd.concat(x_train_list, ignore_index=True)
-    y_train = pd.concat(y_train_list, ignore_index=True)
+    X_train, y_train = load_stacked_snapshots(train_cutoffs)
 
     xp_val, yp_val = cached_paths(val_cutoff)
     if not xp_val.exists() or not yp_val.exists():

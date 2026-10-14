@@ -9,6 +9,10 @@ import pandas as pd
 from sklearn.metrics import f1_score, mean_squared_error
 
 from sasol_customer_value.config import (
+    COMPOSITE_COEFF_FUEL,
+    COMPOSITE_COEFF_NONFUEL,
+    COMPOSITE_OFFSET,
+    COMPOSITE_W_OPP,
     METRIC_WEIGHTS,
     TARGET_FUEL,
     TARGET_NONFUEL,
@@ -65,9 +69,12 @@ def compute_competition_metrics(
     final_score = (w_fuel * rmse_fuel) + (w_nonfuel * rmse_nonfuel) + (w_opp * f1_opp)
 
     # 2. Authoritative Composite Evaluation Score Formula (calibrated to 10^-16 precision)
-    # Overall = 0.60 + 0.40 * F1_opp - 0.40540558 * RMSE_fuel - 0.36764644 * RMSE_nonfuel
+    # Overall = COMPOSITE_OFFSET + COMPOSITE_W_OPP * F1 - COMPOSITE_COEFF_FUEL * RMSE_fuel - COMPOSITE_COEFF_NONFUEL * RMSE_nonfuel
     lb_score = (
-        0.60 + (0.40 * f1_opp) - (0.40540558 * rmse_fuel) - (0.36764644 * rmse_nonfuel)
+        COMPOSITE_OFFSET
+        + (COMPOSITE_W_OPP * f1_opp)
+        - (COMPOSITE_COEFF_FUEL * rmse_fuel)
+        - (COMPOSITE_COEFF_NONFUEL * rmse_nonfuel)
     )
 
     return {

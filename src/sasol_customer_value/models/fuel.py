@@ -12,7 +12,7 @@ import pandas as pd
 from catboost import CatBoostRegressor
 from xgboost import XGBRegressor
 
-from sasol_customer_value.config import ModelVariant
+from sasol_customer_value.config import DEFAULT_BAGGING_SEEDS, ModelVariant
 
 
 @dataclass
@@ -33,11 +33,16 @@ class FuelModel:
             self.weights = (0.20, 0.55, 0.25)
             self.n_features = 218
             self.seeds = [self.seed]
-        elif self.variant == "champion_v2":
+        elif self.variant in ["champion_v2", "champion_v3"]:
             # Optimized 202-feature subspace with tuned weights (0.28 LGB, 0.72 CB) and 5-seed bagging
             self.weights = (0.28, 0.72, 0.0)
             self.n_features = 202
-            self.seeds = [42, 100, 2024, 777, 999]
+            self.seeds = DEFAULT_BAGGING_SEEDS
+        elif self.variant in ["champion_v4", "champion_v5", "champion_v6"]:
+            # Champion V4, V5 & V6: 5-seed bagged tri-family blend (0.40 LGB, 0.45 CB, 0.15 XGB) on 202 features
+            self.weights = (0.40, 0.45, 0.15)
+            self.n_features = 202
+            self.seeds = DEFAULT_BAGGING_SEEDS
         else:
             raise ValueError(f"Unknown FuelModel variant: {self.variant}")
 
@@ -49,7 +54,12 @@ class FuelModel:
         cols = list(X.columns[: self.n_features])
         return X[cols]
 
-    def fit(self, X: pd.DataFrame, y_fuel: np.ndarray) -> "FuelModel":
+    def fit(
+        self,
+        X: pd.DataFrame,
+        y_fuel: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> "FuelModel":
         """Fit all component regressors across configured seeds on training features and fuel target."""
         X_sel = self._select_features(X)
         self.models_ = []
@@ -80,10 +90,10 @@ class FuelModel:
                     verbosity=0,
                 )
 
-            m_lgb.fit(X_sel, y_fuel)
-            m_cb.fit(X_sel, y_fuel)
+            m_lgb.fit(X_sel, y_fuel, sample_weight=sample_weight)
+            m_cb.fit(X_sel, y_fuel, sample_weight=sample_weight)
             if m_xgb is not None:
-                m_xgb.fit(X_sel, y_fuel)
+                m_xgb.fit(X_sel, y_fuel, sample_weight=sample_weight)
             self.models_.append((m_lgb, m_cb, m_xgb))
 
         return self
