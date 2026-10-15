@@ -84,26 +84,16 @@ flowchart TD
 - **Python Version:** `Python 3.12` or higher.
 - **Compute Requirements:** Standard consumer CPU (8+ cores recommended, e.g., AMD Ryzen 7 / Intel Core i7); 16 GB RAM minimum. GPU acceleration is supported but **not required** (entire production training runs in < 90 seconds on CPU).
 
-### Installation (Option A: Astral `uv` — Recommended)
-Astral `uv` is the fastest, deterministic Python package manager:
+### Installation via Astral `uv`
+This repository strictly relies on Astral `uv` for deterministic, cryptographically locked environment and dependency management via `pyproject.toml` and `uv.lock`:
+
 ```bash
 # Clone the repository
 git clone https://github.com/amogelang-ramatlo/sasol-customer-value.git
 cd sasol-customer-value
 
-# Synchronize the locked virtual environment
+# Synchronize the locked virtual environment (deterministic package resolution)
 uv sync
-```
-
-### Installation (Option B: Standard `pip`)
-For standard Python virtual environments:
-```bash
-# Create and activate Python 3.12 virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install locked dependencies
-pip install -r requirements.txt
 ```
 
 ---
@@ -262,7 +252,6 @@ sasol-customer-value/
 ├── README.md                              # Authoritative documentation (Zindi guidelines compliant)
 ├── GEMINI.md                              # System architecture blueprint & single source of truth
 ├── pyproject.toml                         # Project metadata, dependencies, and build config
-├── requirements.txt                       # Pinned dependencies for standard pip environments
 ├── uv.lock                                # Deterministic cryptographic lockfile
 │
 ├── docs/                                  # Competition documentation
