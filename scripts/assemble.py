@@ -94,7 +94,7 @@ def assemble_submission(
         v14_act_path = SUBMISSIONS_DIR / "sub_v14_all_star_reactivated.csv"
         v5_path = SUBMISSIONS_DIR / "sub_champion_v5.csv"
         if not v14_act_path.exists():
-            v14_base = Path(r"c:\Users\amoge\Downloads\sub_v14_all_star_synthesis.csv")
+            v14_base = SUBMISSIONS_DIR / "sub_v14_all_star_synthesis.csv"
             if v14_base.exists():
                 cache_path = (
                     PROCESSED_DATA_DIR / "snapshots" / "X_test_2025-12-01.parquet"
