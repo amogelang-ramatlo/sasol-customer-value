@@ -16,6 +16,7 @@ ModelVariant = Literal[
     "champion_v4",
     "champion_v5",
     "champion_v6",
+    "champion_v5_reactivated",
 ]
 
 # -----------------------------------------------------------------------------

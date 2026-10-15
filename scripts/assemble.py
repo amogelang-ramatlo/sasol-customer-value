@@ -12,13 +12,16 @@ import pandas as pd
 
 from sasol_customer_value.config import (
     ID_COL,
+    PROCESSED_DATA_DIR,
+    PUBLIC_HISTORY_END_EXCLUSIVE,
     SUBMISSIONS_DIR,
     TARGET_FUEL,
     TARGET_NONFUEL,
     TARGET_OPPORTUNITY,
     ModelVariant,
 )
-from sasol_customer_value.data.loader import load_test_customers
+from sasol_customer_value.data.loader import load_test_customers, load_transactions
+from sasol_customer_value.models.opportunity import apply_lapsed_fuel_reactivation
 from sasol_customer_value.models.pipeline import train_production_models
 from sasol_customer_value.utils.helpers import validate_submission_format
 
@@ -43,8 +46,47 @@ def assemble_submission(
             output_path = SUBMISSIONS_DIR / "sub_champion_v5.csv"
         elif config_name == "champion_v6":
             output_path = SUBMISSIONS_DIR / "sub_champion_v6.csv"
+        elif config_name == "champion_v5_reactivated":
+            output_path = SUBMISSIONS_DIR / "sub_champion_v5_reactivated.csv"
         else:
             output_path = SUBMISSIONS_DIR / f"sub_{config_name}.csv"
+
+    if config_name == "champion_v5_reactivated":
+        v5_path = SUBMISSIONS_DIR / "sub_champion_v5.csv"
+        if not v5_path.exists():
+            print("[INFO] Building base Champion V5 submission first...")
+            assemble_submission(config_name="champion_v5", output_path=v5_path)
+
+        cache_path = PROCESSED_DATA_DIR / "snapshots" / "X_test_2025-12-01.parquet"
+        if cache_path.exists():
+            X_test = pd.read_parquet(cache_path)
+        else:
+            from sasol_customer_value.data.snapshots import build_features
+
+            df_trans = load_transactions()
+            df_test = load_test_customers()
+            test_ids = list(df_test[ID_COL].astype(str))
+            X_test = build_features(
+                df_trans,
+                cutoff=PUBLIC_HISTORY_END_EXCLUSIVE,
+                customer_ids=pd.Index(test_ids),
+            ).reindex(test_ids)
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            X_test.to_parquet(cache_path)
+
+        sub_v5 = pd.read_csv(v5_path)
+        sub_out = apply_lapsed_fuel_reactivation(sub=sub_v5, X_test=X_test, top_k=100)
+        validate_submission_format(
+            sub_out, expected_ids=list(sub_out[ID_COL].astype(str))
+        )
+        sub_out.to_csv(output_path, index=False)
+        print(
+            f"\n[SUCCESS] Reactivated submission assembled and verified at: {output_path}"
+        )
+        print("\nOpportunity Class Distribution (Top 8):")
+        print(sub_out[TARGET_OPPORTUNITY].value_counts().head(8))
+        print("=" * 80)
+        return output_path
 
     print("=" * 80)
     print(f"ASSEMBLING SUBMISSION: {config_name.upper()} -> {output_path.name}")
@@ -96,9 +138,10 @@ if __name__ == "__main__":
             "champion_v4",
             "champion_v5",
             "champion_v6",
+            "champion_v5_reactivated",
         ],
-        default="champion_v6",
-        help="Model configuration to assemble (best_zindi, best_local, champion_v2, champion_v3, champion_v4, champion_v5, champion_v6)",
+        default="champion_v5_reactivated",
+        help="Model configuration to assemble (best_zindi, best_local, champion_v2, champion_v3, champion_v4, champion_v5, champion_v6, champion_v5_reactivated)",
     )
     parser.add_argument(
         "--output",

@@ -14,7 +14,10 @@ import pandas as pd
 from sasol_customer_value.config import (
     DEFAULT_BAGGING_SEEDS,
     DEFAULT_OPP_BIASES,
+    ID_COL,
     N_OPPORTUNITY_CLASSES,
+    TARGET_FUEL,
+    TARGET_OPPORTUNITY,
     ModelVariant,
 )
 from sasol_customer_value.features.hurdles import (
@@ -157,3 +160,57 @@ class OpportunityModel:
             consensus.append(top_cand if top_count >= 2 else pred_B[i])
 
         return np.array(consensus)
+
+
+def apply_lapsed_fuel_reactivation(
+    sub: pd.DataFrame,
+    X_test: pd.DataFrame,
+    top_k: int = 100,
+) -> pd.DataFrame:
+    """Post-processing: Reclassify top K high-confidence lapsed members to Fuel Growth.
+
+    Restores natural summer holiday prevalence for high-tenure loyalty members
+    who were temporarily inactive in spring (Sept-Nov) but have high predicted fuel spend
+    and confirmed prior summer holiday activity.
+    """
+    sub_out = sub.copy()
+    X_aligned = X_test.reindex(sub_out[ID_COL].astype(str))
+
+    is_lapsed_mask = (
+        (sub_out[TARGET_OPPORTUNITY].values == "Inactivity")
+        & (X_aligned["fuel_litres_last_90d"].values == 0)
+        & (X_aligned["fuel_litres_lifetime"].values >= 40)
+        & (X_aligned["same_season_prior_year_active"].values == 1.0)
+    )
+
+    indices = np.where(is_lapsed_mask)[0]
+    df_cand = pd.DataFrame(
+        {
+            ID_COL: sub_out.iloc[indices][ID_COL].values,
+            "CLV_fuel": sub_out.iloc[indices][TARGET_FUEL].values,
+            "days_since_last_visit": X_aligned.iloc[indices][
+                "days_since_last_visit"
+            ].values,
+            "fuel_litres_lifetime": X_aligned.iloc[indices][
+                "fuel_litres_lifetime"
+            ].values,
+            "baskets_active_months_6m": X_aligned.iloc[indices][
+                "baskets_active_months_6m"
+            ].values,
+        }
+    )
+
+    # Composite holiday reactivation score with deterministic tiebreaker
+    df_cand["reactivation_score"] = (
+        df_cand["CLV_fuel"] * 2.0
+        + (df_cand["baskets_active_months_6m"] / 6.0) * 0.3
+        - (df_cand["days_since_last_visit"] / 365.0) * 0.2
+    )
+    df_cand = df_cand.sort_values(
+        by=["reactivation_score", ID_COL], ascending=[False, True]
+    )
+    selected_ids = set(df_cand.head(top_k)[ID_COL])
+
+    flip_mask = sub_out[ID_COL].isin(selected_ids)
+    sub_out.loc[flip_mask, TARGET_OPPORTUNITY] = "Existing-category growth: Fuel"
+    return sub_out
