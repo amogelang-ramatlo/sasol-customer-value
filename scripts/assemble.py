@@ -48,6 +48,8 @@ def assemble_submission(
             output_path = SUBMISSIONS_DIR / "sub_champion_v6.csv"
         elif config_name == "champion_v5_reactivated":
             output_path = SUBMISSIONS_DIR / "sub_champion_v5_reactivated.csv"
+        elif config_name == "champion_triple_crown":
+            output_path = SUBMISSIONS_DIR / "sub_champion_triple_crown.csv"
         else:
             output_path = SUBMISSIONS_DIR / f"sub_{config_name}.csv"
 
@@ -85,6 +87,52 @@ def assemble_submission(
         )
         print("\nOpportunity Class Distribution (Top 8):")
         print(sub_out[TARGET_OPPORTUNITY].value_counts().head(8))
+        print("=" * 80)
+        return output_path
+
+    if config_name == "champion_triple_crown":
+        v14_act_path = SUBMISSIONS_DIR / "sub_v14_all_star_reactivated.csv"
+        v5_path = SUBMISSIONS_DIR / "sub_champion_v5.csv"
+        if not v14_act_path.exists():
+            v14_base = Path(r"c:\Users\amoge\Downloads\sub_v14_all_star_synthesis.csv")
+            if v14_base.exists():
+                cache_path = (
+                    PROCESSED_DATA_DIR / "snapshots" / "X_test_2025-12-01.parquet"
+                )
+                X_test = pd.read_parquet(cache_path)
+                df_v14 = pd.read_csv(v14_base)
+                sub_v14_act = apply_lapsed_fuel_reactivation(
+                    df_v14, X_test=X_test, top_k=100
+                )
+                sub_v14_act.to_csv(v14_act_path, index=False)
+            else:
+                assemble_submission(
+                    config_name="champion_v5_reactivated", output_path=v14_act_path
+                )
+
+        if not v5_path.exists():
+            assemble_submission(config_name="champion_v5", output_path=v5_path)
+
+        sub_v14 = pd.read_csv(v14_act_path)
+        sub_v5 = pd.read_csv(v5_path)
+
+        sub_tc = pd.DataFrame(
+            {
+                ID_COL: sub_v14[ID_COL].values,
+                TARGET_FUEL: sub_v14[TARGET_FUEL].values,
+                TARGET_NONFUEL: sub_v5[TARGET_NONFUEL].values,
+                TARGET_OPPORTUNITY: sub_v14[TARGET_OPPORTUNITY].values,
+            }
+        )
+        validate_submission_format(
+            sub_tc, expected_ids=list(sub_tc[ID_COL].astype(str))
+        )
+        sub_tc.to_csv(output_path, index=False)
+        print(
+            f"\n[SUCCESS] Triple Crown submission assembled and verified at: {output_path}"
+        )
+        print("\nOpportunity Class Distribution (Top 8):")
+        print(sub_tc[TARGET_OPPORTUNITY].value_counts().head(8))
         print("=" * 80)
         return output_path
 
@@ -139,9 +187,10 @@ if __name__ == "__main__":
             "champion_v5",
             "champion_v6",
             "champion_v5_reactivated",
+            "champion_triple_crown",
         ],
-        default="champion_v5_reactivated",
-        help="Model configuration to assemble (best_zindi, best_local, champion_v2, champion_v3, champion_v4, champion_v5, champion_v6, champion_v5_reactivated)",
+        default="champion_triple_crown",
+        help="Model configuration to assemble (best_zindi, best_local, champion_v2, champion_v3, champion_v4, champion_v5, champion_v6, champion_v5_reactivated, champion_triple_crown)",
     )
     parser.add_argument(
         "--output",
