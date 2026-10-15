@@ -15,9 +15,16 @@ from sasol_customer_value.config import (
 def test_validation_label_schema():
     """Verify that generated validation labels match submission requirements."""
     parquet_path = PROCESSED_DATA_DIR / "val_labels_20250901.parquet"
-    assert parquet_path.exists(), "val_labels_20250901.parquet should exist"
+    if not parquet_path.exists():
+        from sasol_customer_value.data.labels import generate_cutoff_labels
+        from sasol_customer_value.data.loader import load_transactions
 
-    df = pd.read_parquet(parquet_path)
+        df_trans = load_transactions()
+        _, df = generate_cutoff_labels(
+            df_trans, cutoff="2025-09-01", save_path=parquet_path
+        )
+    else:
+        df = pd.read_parquet(parquet_path)
     # Check columns
     assert list(df.columns) == SUBMISSION_COLUMNS
 

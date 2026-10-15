@@ -99,12 +99,20 @@ def load_stacked_snapshots(
     """
     x_list: list[pd.DataFrame] = []
     y_list: list[pd.DataFrame] = []
+    df_trans = None
     for c in cutoffs:
         xp, yp = cached_paths(c)
         if not xp.exists() or not yp.exists():
-            raise FileNotFoundError(f"Missing cached snapshot for cutoff {c}")
-        x_list.append(pd.read_parquet(xp))
-        y_list.append(pd.read_parquet(yp))
+            if df_trans is None:
+                from sasol_customer_value.data.loader import load_transactions
+
+                df_trans = load_transactions()
+            xc, yc = build_snapshot(df_trans, cutoff=c, use_cache=True)
+            x_list.append(xc)
+            y_list.append(yc)
+        else:
+            x_list.append(pd.read_parquet(xp))
+            y_list.append(pd.read_parquet(yp))
     X_stacked = pd.concat(x_list, ignore_index=True)
     y_stacked = pd.concat(y_list, ignore_index=True)
     return X_stacked, y_stacked
