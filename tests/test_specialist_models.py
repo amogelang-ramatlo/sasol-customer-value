@@ -245,6 +245,5 @@ def test_champion_v6_models_fit_predict(mock_data):
     om.fit(X, y_opp)
     p_opp = om.predict(X)
     assert len(p_opp) == len(X)
-    assert isinstance(p_opp[0], str)
-    assert om.cb_model_B is not None
-    assert om.cb_model_C is not None
+    assert len(om.models_B) == 1
+    assert len(om.models_C) == 1

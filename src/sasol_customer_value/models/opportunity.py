@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
-from catboost import CatBoostClassifier
 
 from sasol_customer_value.config import (
     DEFAULT_BAGGING_SEEDS,
@@ -28,7 +27,7 @@ from sasol_customer_value.features.hurdles import (
 class OpportunityModel:
     """Specialist committee classifier for the 17-class Opportunity target."""
 
-    variant: ModelVariant = "best_zindi"
+    variant: ModelVariant = "champion_v5"
     seeds: list[int] = field(default_factory=lambda: [42])
 
     def __post_init__(self) -> None:
@@ -38,7 +37,6 @@ class OpportunityModel:
             "champion_v3",
             "champion_v4",
             "champion_v5",
-            "champion_v6",
         ]:
             # 5-Seed multi-architecture committee
             self.seeds_A = list(DEFAULT_BAGGING_SEEDS)
@@ -53,8 +51,6 @@ class OpportunityModel:
         self.models_A: list[lgb.LGBMClassifier] = []
         self.models_B: list[lgb.LGBMClassifier] = []
         self.models_C: list[lgb.LGBMClassifier] = []
-        self.cb_model_B: CatBoostClassifier | None = None
-        self.cb_model_C: CatBoostClassifier | None = None
         self.classes_: np.ndarray | None = None
 
     def fit(self, X: pd.DataFrame, y_opp: np.ndarray) -> "OpportunityModel":
@@ -88,17 +84,6 @@ class OpportunityModel:
             clf.fit(X[cols_218], y_opp)
             self.models_B.append(clf)
 
-        if self.variant == "champion_v6":
-            self.cb_model_B = CatBoostClassifier(
-                iterations=250,
-                learning_rate=0.06,
-                depth=5,
-                random_seed=42,
-                verbose=0,
-                thread_count=-1,
-            )
-            self.cb_model_B.fit(X[cols_218], y_opp)
-
         if self.variant == "champion_v3":
             X_C = add_store_category_hurdles(X)
             cols_C = list(X_C.columns)
@@ -119,17 +104,6 @@ class OpportunityModel:
             clf.fit(X_C[cols_C], y_opp)
             self.models_C.append(clf)
 
-        if self.variant == "champion_v6":
-            self.cb_model_C = CatBoostClassifier(
-                iterations=250,
-                learning_rate=0.06,
-                depth=5,
-                random_seed=42,
-                verbose=0,
-                thread_count=-1,
-            )
-            self.cb_model_C.fit(X_C[cols_C], y_opp)
-
         self.classes_ = self.models_A[0].classes_
         return self
 
@@ -138,8 +112,6 @@ class OpportunityModel:
         models: list[lgb.LGBMClassifier],
         X_sub: pd.DataFrame,
         X_raw: pd.DataFrame | None = None,
-        cb_model: CatBoostClassifier | None = None,
-        cb_weight: float = 0.0,
     ) -> np.ndarray:
         """Average probabilities across models and apply summer log-odds biases."""
         if self.classes_ is None:
@@ -147,14 +119,6 @@ class OpportunityModel:
                 "OpportunityModel must be fitted before making predictions."
             )
         probs = np.mean([m.predict_proba(X_sub) for m in models], axis=0)
-        if cb_model is not None and cb_weight > 0.0:
-            cb_p = cb_model.predict_proba(X_sub)
-            cb_reordered = np.zeros_like(cb_p)
-            for i, c in enumerate(self.classes_):
-                idx = list(cb_model.classes_).index(c)
-                cb_reordered[:, i] = cb_p[:, idx]
-            probs = (1.0 - cb_weight) * probs + cb_weight * cb_reordered
-
         bias_vec = np.array(
             [float(DEFAULT_OPP_BIASES.get(str(c), 0.0)) for c in self.classes_],
             dtype=np.float64,
@@ -178,30 +142,12 @@ class OpportunityModel:
             X_C = add_store_category_hurdles(X)
             cols_C = list(X_C.columns)
             pred_C = self._predict_component(self.models_C, X_C[cols_C], X_raw=X)
-        elif self.variant == "champion_v6":
-            cols_225 = list(X.columns[:225])
-            pred_C = self._predict_component(
-                self.models_C,
-                X[cols_225],
-                X_raw=X,
-                cb_model=self.cb_model_C,
-                cb_weight=0.25,
-            )
         else:
             cols_225 = list(X.columns[:225])
             pred_C = self._predict_component(self.models_C, X[cols_225], X_raw=X)
 
         pred_A = self._predict_component(self.models_A, X[cols_202], X_raw=X)
-        if self.variant == "champion_v6":
-            pred_B = self._predict_component(
-                self.models_B,
-                X[cols_218],
-                X_raw=X,
-                cb_model=self.cb_model_B,
-                cb_weight=0.25,
-            )
-        else:
-            pred_B = self._predict_component(self.models_B, X[cols_218], X_raw=X)
+        pred_B = self._predict_component(self.models_B, X[cols_218], X_raw=X)
 
         consensus = []
         for i in range(len(X)):
