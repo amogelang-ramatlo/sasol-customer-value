@@ -32,7 +32,15 @@ def assemble_submission(
     """Train specialists, assemble submission, and validate compliance."""
     SUBMISSIONS_DIR.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        if config_name == "best_zindi":
+        if config_name in ("1", "submission_1"):
+            output_path = SUBMISSIONS_DIR / "submission_1.csv"
+        elif config_name in ("2", "submission_2"):
+            output_path = SUBMISSIONS_DIR / "submission_2.csv"
+        elif config_name == "champion_triple_crown":
+            output_path = SUBMISSIONS_DIR / "sub_champion_triple_crown.csv"
+        elif config_name == "champion_v5_reactivated":
+            output_path = SUBMISSIONS_DIR / "sub_champion_v5_reactivated.csv"
+        elif config_name == "best_zindi":
             output_path = SUBMISSIONS_DIR / "sub_champion_zindi.csv"
         elif config_name == "best_local":
             output_path = SUBMISSIONS_DIR / "sub_champion_local.csv"
@@ -46,14 +54,10 @@ def assemble_submission(
             output_path = SUBMISSIONS_DIR / "sub_champion_v5.csv"
         elif config_name == "champion_v6":
             output_path = SUBMISSIONS_DIR / "sub_champion_v6.csv"
-        elif config_name == "champion_v5_reactivated":
-            output_path = SUBMISSIONS_DIR / "sub_champion_v5_reactivated.csv"
-        elif config_name == "champion_triple_crown":
-            output_path = SUBMISSIONS_DIR / "sub_champion_triple_crown.csv"
         else:
             output_path = SUBMISSIONS_DIR / f"sub_{config_name}.csv"
 
-    if config_name == "champion_v5_reactivated":
+    if config_name in ("2", "submission_2", "champion_v5_reactivated"):
         v5_path = SUBMISSIONS_DIR / "sub_champion_v5.csv"
         if not v5_path.exists():
             print("[INFO] Building base Champion V5 submission first...")
@@ -82,15 +86,23 @@ def assemble_submission(
             sub_out, expected_ids=list(sub_out[ID_COL].astype(str))
         )
         sub_out.to_csv(output_path, index=False)
+        # Keep both canonical names synced
+        if output_path.name == "submission_2.csv":
+            sub_out.to_csv(
+                SUBMISSIONS_DIR / "sub_champion_v5_reactivated.csv", index=False
+            )
+        elif output_path.name == "sub_champion_v5_reactivated.csv":
+            sub_out.to_csv(SUBMISSIONS_DIR / "submission_2.csv", index=False)
+
         print(
-            f"\n[SUCCESS] Reactivated submission assembled and verified at: {output_path}"
+            f"\n[SUCCESS] Selection 2 (V5 Reactivated) assembled and verified at: {output_path}"
         )
         print("\nOpportunity Class Distribution (Top 8):")
         print(sub_out[TARGET_OPPORTUNITY].value_counts().head(8))
         print("=" * 80)
         return output_path
 
-    if config_name == "champion_triple_crown":
+    if config_name in ("1", "submission_1", "champion_triple_crown"):
         v14_act_path = SUBMISSIONS_DIR / "sub_v14_all_star_reactivated.csv"
         v5_path = SUBMISSIONS_DIR / "sub_champion_v5.csv"
         if not v14_act_path.exists():
@@ -128,8 +140,16 @@ def assemble_submission(
             sub_tc, expected_ids=list(sub_tc[ID_COL].astype(str))
         )
         sub_tc.to_csv(output_path, index=False)
+        # Keep both canonical names synced
+        if output_path.name == "submission_1.csv":
+            sub_tc.to_csv(
+                SUBMISSIONS_DIR / "sub_champion_triple_crown.csv", index=False
+            )
+        elif output_path.name == "sub_champion_triple_crown.csv":
+            sub_tc.to_csv(SUBMISSIONS_DIR / "submission_1.csv", index=False)
+
         print(
-            f"\n[SUCCESS] Triple Crown submission assembled and verified at: {output_path}"
+            f"\n[SUCCESS] Selection 1 (Triple Crown) assembled and verified at: {output_path}"
         )
         print("\nOpportunity Class Distribution (Top 8):")
         print(sub_tc[TARGET_OPPORTUNITY].value_counts().head(8))
@@ -179,18 +199,22 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         choices=[
-            "best_zindi",
-            "best_local",
-            "champion_v2",
-            "champion_v3",
-            "champion_v4",
+            "1",
+            "2",
+            "submission_1",
+            "submission_2",
+            "champion_triple_crown",
+            "champion_v5_reactivated",
             "champion_v5",
             "champion_v6",
-            "champion_v5_reactivated",
-            "champion_triple_crown",
+            "champion_v4",
+            "champion_v3",
+            "champion_v2",
+            "best_zindi",
+            "best_local",
         ],
-        default="champion_triple_crown",
-        help="Model configuration to assemble (best_zindi, best_local, champion_v2, champion_v3, champion_v4, champion_v5, champion_v6, champion_v5_reactivated, champion_triple_crown)",
+        default="1",
+        help="Model configuration to assemble: '1' / 'submission_1' (Triple Crown, 0.313971), '2' / 'submission_2' (V5 Reactivated, 0.313745)",
     )
     parser.add_argument(
         "--output",
