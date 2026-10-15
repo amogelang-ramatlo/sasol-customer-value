@@ -31,6 +31,31 @@ $$\text{Composite Score} = 0.60 + 0.40 \times F_{1,\text{weighted}}(\text{Opport
 - **Weight Allocation:** Fuel CLV: 30% | Non-Fuel CLV: 30% | Opportunity: 40%
 - **Evaluation Paradigm:** Continuous targets are evaluated via Root Mean Squared Error (RMSE); Opportunity is evaluated via Multiclass Weighted $F_1$ Score.
 
+### Official Submission & Reviewer Summary
+
+| Property | Details |
+| :--- | :--- |
+| **Competition** | [Sasol Customer Value Challenge (Zindi)](https://zindi.world/competitions/sasol-customer-value) |
+| **Competitor / Author** | Amogelang Ramatlo (`amogelang-ramatlo`) |
+| **Contact Email** | `amogelang.ramatlo@gmail.com` |
+| **Selection 1 (Primary)** | [`submissions/sub_champion_triple_crown.csv`](submissions/sub_champion_triple_crown.csv) — **Live Score: `0.313971304`** (Rank 12/13 Milestone) |
+| **Selection 2 (Secondary)** | [`submissions/sub_champion_v5_reactivated.csv`](submissions/sub_champion_v5_reactivated.csv) — **Live Score: `0.313745112`** (Rank 13 Milestone) |
+
+> [!IMPORTANT]
+> **To Zindi Judges & Code Reviewers (Quickstart):**
+> You can reproduce both official winning submissions from scratch in two single-command steps:
+> ```bash
+> # 1. Synchronize locked environment (CPython 3.12+)
+> uv sync
+>
+> # 2. Assemble Official Selection 1 (Primary Champion — Score: 0.313971)
+> uv run python scripts/assemble.py --config 1
+>
+> # 3. Assemble Official Selection 2 (Secondary Benchmark — Score: 0.313745)
+> uv run python scripts/assemble.py --config 2
+> ```
+> Both commands run end-to-end, enforce strict anti-leakage validation, and output bit-for-bit verified files matching the SHA-256 checksums in Section 8.
+
 ---
 
 ## 2. End-to-End System Architecture
@@ -74,6 +99,19 @@ flowchart TD
         Compliance --> FinalCSV["Official Champion Submission\nsubmissions/sub_champion_triple_crown.csv\nLive Score: 0.313971 (Rank 12/13)"]
     end
 ```
+
+### 2.1 End-to-End Execution Flow & Data Lineage
+
+| Pipeline Stage | Inputs | Transformations & Operations | Output Artifact | Key Metrics / Validation |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. Ingestion & Scoping** | `train.csv`, `test.csv` | Preserves literal `"NA"` strings; applies signed revenue; filters excluded categories & discounts. | Clean memory DataFrames | Zero missing `"NA"` retail items |
+| **2. Feature Engineering** | Historical transactions | Anti-leakage RFM cadence, category basket matrices, commuter velocity, and seasonal indices. | 225-feature snapshot parquets | $T-90\text{d}$ strict temporal embargo |
+| **3. Model F Fitting** | 202-feature subspace | Tri-family bagged ensemble (LightGBM 0.40, CatBoost 0.45, XGBoost 0.15) over 5 seeds. | Continuous $z_{\text{fuel}}$ predictions | **`0.589219`** Fuel RMSE |
+| **4. Model N Fitting** | 218-feature subspace | CatBoost dominant regressor (0.95 CB / 0.05 LGB) with depth-5 symmetric oblivious trees. | Continuous $z_{\text{nonfuel}}$ predictions | **`0.723648`** Non-Fuel RMSE |
+| **5. Model O Fitting** | 202, 218, 225 subspaces | 3-Subspace hybrid committee with calibrated festive log-odds priors and consensus majority vote. | Raw 17-class Opportunity labels | **`0.547227`** Weighted $F_1$ |
+| **6. Holiday Post-Processing** | Raw Opportunity + Test features | Lapsed road-tripper filter: reclassifies top 100 high-confidence holiday travelers to Fuel Growth. | Calibrated Opportunity labels | $+0.00741$ Weighted $F_1$ boost |
+| **7. Quality & Compliance** | Predicted arrays | 5-point automated check: row count (5,488), nulls (0), non-negative bounds, 17 valid labels. | Verified submission DataFrame | 100% submission compliance |
+| **8. Export & Checksum** | Verified DataFrame | Output formatting and cryptographic SHA-256 verification. | Final Submission CSVs | Bit-for-bit reproducible hashes |
 
 ---
 
@@ -300,15 +338,17 @@ sasol-customer-value/
 │           └── helpers.py                 # 5-Point submission compliance validator
 │
 ├── scripts/
-│   ├── assemble.py                        # Master production submission assembler
+│   ├── assemble.py                        # Master production submission assembler (--config 1 / 2)
 │   ├── evaluate.py                        # 3-Fold embargoed OOT validation harness
-│   ├── postprocess_lapsed_reactivation.py # Standalone holiday road-trip reactivation CLI
-│   └── train.py                           # Full-history refitting CLI
+│   ├── train.py                           # Full-history refitting CLI
+│   └── archive/                           # Archived standalone exploratory scripts
 │
 ├── submissions/                           # Verified competition submissions
-│   ├── sub_champion_triple_crown.csv      # All-time champion (Score: 0.313971)
-│   ├── sub_champion_v5_reactivated.csv    # Secondary benchmark (Score: 0.313745)
-│   └── sub_champion_v5.csv                # Base benchmark (Score: 0.310781)
+│   ├── sub_champion_triple_crown.csv      # Selection 1 Champion (Live Score: 0.313971)
+│   ├── sub_champion_v5_reactivated.csv    # Selection 2 Benchmark (Live Score: 0.313745)
+│   ├── sub_champion_v5.csv                # Base model output
+│   ├── sub_v14_all_star_synthesis.csv     # Base reference for Triple Crown Opportunity
+│   └── archive/                           # 11 archived intermediate/exploratory tuning runs
 │
 └── tests/                                 # Pytest test suite (21 unit & integration tests)
 ```
