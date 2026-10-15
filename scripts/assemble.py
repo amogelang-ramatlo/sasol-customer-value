@@ -32,13 +32,9 @@ def assemble_submission(
     """Train specialists, assemble submission, and validate compliance."""
     SUBMISSIONS_DIR.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        if config_name in ("1", "submission_1"):
-            output_path = SUBMISSIONS_DIR / "submission_1.csv"
-        elif config_name in ("2", "submission_2"):
-            output_path = SUBMISSIONS_DIR / "submission_2.csv"
-        elif config_name == "champion_triple_crown":
+        if config_name in ("1", "champion_triple_crown"):
             output_path = SUBMISSIONS_DIR / "sub_champion_triple_crown.csv"
-        elif config_name == "champion_v5_reactivated":
+        elif config_name in ("2", "champion_v5_reactivated"):
             output_path = SUBMISSIONS_DIR / "sub_champion_v5_reactivated.csv"
         elif config_name == "best_zindi":
             output_path = SUBMISSIONS_DIR / "sub_champion_zindi.csv"
@@ -57,7 +53,7 @@ def assemble_submission(
         else:
             output_path = SUBMISSIONS_DIR / f"sub_{config_name}.csv"
 
-    if config_name in ("2", "submission_2", "champion_v5_reactivated"):
+    if config_name in ("2", "champion_v5_reactivated"):
         v5_path = SUBMISSIONS_DIR / "sub_champion_v5.csv"
         if not v5_path.exists():
             print("[INFO] Building base Champion V5 submission first...")
@@ -86,14 +82,6 @@ def assemble_submission(
             sub_out, expected_ids=list(sub_out[ID_COL].astype(str))
         )
         sub_out.to_csv(output_path, index=False)
-        # Keep both canonical names synced
-        if output_path.name == "submission_2.csv":
-            sub_out.to_csv(
-                SUBMISSIONS_DIR / "sub_champion_v5_reactivated.csv", index=False
-            )
-        elif output_path.name == "sub_champion_v5_reactivated.csv":
-            sub_out.to_csv(SUBMISSIONS_DIR / "submission_2.csv", index=False)
-
         print(
             f"\n[SUCCESS] Selection 2 (V5 Reactivated) assembled and verified at: {output_path}"
         )
@@ -102,7 +90,7 @@ def assemble_submission(
         print("=" * 80)
         return output_path
 
-    if config_name in ("1", "submission_1", "champion_triple_crown"):
+    if config_name in ("1", "champion_triple_crown"):
         v14_act_path = SUBMISSIONS_DIR / "sub_v14_all_star_reactivated.csv"
         v5_path = SUBMISSIONS_DIR / "sub_champion_v5.csv"
         if not v14_act_path.exists():
@@ -140,14 +128,6 @@ def assemble_submission(
             sub_tc, expected_ids=list(sub_tc[ID_COL].astype(str))
         )
         sub_tc.to_csv(output_path, index=False)
-        # Keep both canonical names synced
-        if output_path.name == "submission_1.csv":
-            sub_tc.to_csv(
-                SUBMISSIONS_DIR / "sub_champion_triple_crown.csv", index=False
-            )
-        elif output_path.name == "sub_champion_triple_crown.csv":
-            sub_tc.to_csv(SUBMISSIONS_DIR / "submission_1.csv", index=False)
-
         print(
             f"\n[SUCCESS] Selection 1 (Triple Crown) assembled and verified at: {output_path}"
         )
@@ -201,8 +181,6 @@ if __name__ == "__main__":
         choices=[
             "1",
             "2",
-            "submission_1",
-            "submission_2",
             "champion_triple_crown",
             "champion_v5_reactivated",
             "champion_v5",
@@ -214,7 +192,7 @@ if __name__ == "__main__":
             "best_local",
         ],
         default="1",
-        help="Model configuration to assemble: '1' / 'submission_1' (Triple Crown, 0.313971), '2' / 'submission_2' (V5 Reactivated, 0.313745)",
+        help="Model configuration to assemble: '1' / 'champion_triple_crown' (0.313971), '2' / 'champion_v5_reactivated' (0.313745)",
     )
     parser.add_argument(
         "--output",

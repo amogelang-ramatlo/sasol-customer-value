@@ -11,8 +11,6 @@ from typing import Any, Literal
 ModelVariant = Literal[
     "1",
     "2",
-    "submission_1",
-    "submission_2",
     "best_zindi",
     "best_local",
     "champion_v2",

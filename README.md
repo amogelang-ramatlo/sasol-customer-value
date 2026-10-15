@@ -161,30 +161,31 @@ The deterministic post-processing heuristic ([`apply_lapsed_fuel_reactivation`](
 
 ### 6.1 Official Selected Submissions (Selection 1 & Selection 2)
 
-| Selection on Zindi | Primary Filename | Dual Alias | Zindi Score | Milestone | Single CLI Reproduction Command |
-| :--- | :--- | :--- | :---: | :---: | :--- |
-| **Selection 1 (Primary)** | [`submissions/submission_1.csv`](submissions/submission_1.csv) | `sub_champion_triple_crown.csv` | **`0.313971304`** | **Rank 12/13 Champion** | `uv run python scripts/assemble.py --config 1` |
-| **Selection 2 (Secondary)** | [`submissions/submission_2.csv`](submissions/submission_2.csv) | `sub_champion_v5_reactivated.csv` | **`0.313745112`** | **Rank 13 Milestone** | `uv run python scripts/assemble.py --config 2` |
+| Selection on Zindi | Official Submission Filename | Zindi Score | Milestone / Architecture | Single CLI Reproduction Command |
+| :--- | :--- | :---: | :--- | :--- |
+| **Selection 1 (Primary)** | [`submissions/sub_champion_triple_crown.csv`](submissions/sub_champion_triple_crown.csv) | **`0.313971304`** | **Rank 12/13 Champion** (Triple Crown Target Synthesis) | `uv run python scripts/assemble.py --config 1` |
+| **Selection 2 (Secondary)** | [`submissions/sub_champion_v5_reactivated.csv`](submissions/sub_champion_v5_reactivated.csv) | **`0.313745112`** | **Rank 13 Milestone** (Champion V5 + Lapsed Fuel Reactivation) | `uv run python scripts/assemble.py --config 2` |
 
 > [!TIP]
-> Running `uv run python scripts/assemble.py` without arguments defaults directly to **Selection 1 (`submission_1.csv`)**.
-> The assembler automatically writes both `submission_1.csv` and `sub_champion_triple_crown.csv` synchronously so whichever filename you submit to Zindi matches bit-for-bit.
+> Running `uv run python scripts/assemble.py` without arguments defaults directly to **Selection 1 (`sub_champion_triple_crown.csv`)**.
 
 ### 6.2 Step-by-Step Reproduction Instructions
 
-#### Selection 1: All-Time Competition Champion (Rank 12/13 Milestone)
+#### Selection 1: Triple Crown Champion (Rank 12/13 Milestone)
 ```bash
 uv run python scripts/assemble.py --config 1
+# (or: uv run python scripts/assemble.py --config champion_triple_crown)
 ```
-- **Output Files:** [`submissions/submission_1.csv`](submissions/submission_1.csv) / [`submissions/sub_champion_triple_crown.csv`](submissions/sub_champion_triple_crown.csv)
+- **Output File:** [`submissions/sub_champion_triple_crown.csv`](submissions/sub_champion_triple_crown.csv)
 - **SHA-256 Checksum:** `074308f032abf6764b915f056e9d4dc7d01acae22316b3ed7a49c08ca8c4e5f7`
 - **Live Leaderboard Score:** **`0.313971304`**
 
-#### Selection 2: Secondary Benchmark Submission (Rank 13 Milestone)
+#### Selection 2: Champion V5 Reactivated (Rank 13 Milestone)
 ```bash
 uv run python scripts/assemble.py --config 2
+# (or: uv run python scripts/assemble.py --config champion_v5_reactivated)
 ```
-- **Output Files:** [`submissions/submission_2.csv`](submissions/submission_2.csv) / [`submissions/sub_champion_v5_reactivated.csv`](submissions/sub_champion_v5_reactivated.csv)
+- **Output File:** [`submissions/sub_champion_v5_reactivated.csv`](submissions/sub_champion_v5_reactivated.csv)
 - **SHA-256 Checksum:** `7b397e28e35663dc5b800fcc0df65966d409a1f5e698fd50bca96c1fc369fea4`
 - **Live Leaderboard Score:** **`0.313745112`**
 
