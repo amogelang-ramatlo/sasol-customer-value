@@ -106,8 +106,9 @@ def assemble_submission(
                 )
                 sub_v14_act.to_csv(v14_act_path, index=False)
             else:
-                assemble_submission(
-                    config_name="champion_v5_reactivated", output_path=v14_act_path
+                raise FileNotFoundError(
+                    f"Missing required base synthesis artifact at: {v14_base}\n"
+                    f"Selection 1 (Triple Crown) requires {v14_base.name} in {SUBMISSIONS_DIR}."
                 )
 
         if not v5_path.exists():

@@ -53,6 +53,11 @@ reports/figures/*
 
 submissions/*
 !submissions/.gitkeep
+!submissions/sub_champion_triple_crown.csv
+!submissions/sub_champion_v5_reactivated.csv
+!submissions/sub_champion_v5.csv
+!submissions/sub_v14_all_star_synthesis.csv
+!submissions/sub_v14_all_star_reactivated.csv
 
 docs/experiments/*
 scratch/*
