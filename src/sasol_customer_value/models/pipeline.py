@@ -83,7 +83,12 @@ def train_production_models(
     if target in ["all", "F", "fuel"]:
         print("\n--> 3. Training Model F (Fuel Specialist)...")
         t_f = time.time()
-        fuel_model = FuelModel(variant=config_name)
+        fuel_variant = (
+            "best_zindi"
+            if config_name in ("1", "champion_triple_crown")
+            else config_name
+        )
+        fuel_model = FuelModel(variant=fuel_variant)
         if config_name == "champion_v3":
             snap_cutoffs = []
             for c in cutoffs:
@@ -107,7 +112,12 @@ def train_production_models(
     if target in ["all", "N", "nonfuel"]:
         print("\n--> 4. Training Model N (Non-fuel Specialist)...")
         t_nf = time.time()
-        nonfuel_model = NonfuelModel(variant=config_name)
+        nonfuel_variant = (
+            "champion_v5"
+            if config_name in ("1", "champion_triple_crown")
+            else config_name
+        )
+        nonfuel_model = NonfuelModel(variant=nonfuel_variant)
         nonfuel_model.fit(X_full, y_full[TARGET_NONFUEL].to_numpy(dtype=float))
         pred_nf = nonfuel_model.predict(X_test)
         predictions[TARGET_NONFUEL] = pd.Series(pred_nf, index=test_ids)
@@ -119,7 +129,12 @@ def train_production_models(
     if target in ["all", "O", "opportunity"]:
         print("\n--> 5. Training Model O (Opportunity Specialist)...")
         t_o = time.time()
-        opp_model = OpportunityModel(variant=config_name)
+        opp_variant = (
+            "champion_triple_crown"
+            if config_name in ("1", "champion_triple_crown")
+            else config_name
+        )
+        opp_model = OpportunityModel(variant=opp_variant)
         opp_model.fit(X_full, y_full[TARGET_OPPORTUNITY].astype(str).to_numpy())
         pred_opp = opp_model.predict(X_test)
         predictions[TARGET_OPPORTUNITY] = pd.Series(pred_opp, index=test_ids)

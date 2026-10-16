@@ -188,6 +188,27 @@ DEFAULT_OPP_BIASES: dict[str, float] = {
     "Stable": 0.0,
 }
 
+# Initial calibration log-odds biases (used by Voter 2 in Triple Crown / v4)
+V4_OPP_BIASES: dict[str, float] = {
+    "Existing-category growth: Beverages": 1.1,
+    "Existing-category growth: Food & beverage": 1.25,
+    "Existing-category growth: Fuel": 0.15,
+    "Existing-category growth: Other": 0.65,
+    "Inactivity": -0.2,
+    "New category adoption: Beverages": 0.9,
+    "New category adoption: Braai & Ice": 0.5,
+    "New category adoption: Breads & rolls": 1.15,
+    "New category adoption: Confectionary": 0.4,
+    "New category adoption: Food & beverage": 0.85,
+    "New category adoption: Groceries": 0.15,
+    "New category adoption: Ice-cream": 0.0,
+    "New category adoption: Lubricants": 0.5,
+    "New category adoption: Other": 0.85,
+    "New category adoption: Snacking": 0.65,
+    "New category adoption: Tobacco": 0.0,
+    "Stable": 0.0,
+}
+
 
 def sanitize_category_name(cat: str) -> str:
     """Consistently sanitize raw category names for feature column naming across modules."""

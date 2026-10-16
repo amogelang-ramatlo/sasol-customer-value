@@ -345,9 +345,7 @@ sasol-customer-value/
 ├── submissions/                           # Verified competition submissions
 │   ├── sub_champion_triple_crown.csv      # Selection 1 Champion (Live Score: 0.313971)
 │   ├── sub_champion_v5_reactivated.csv    # Selection 2 Benchmark (Live Score: 0.313745)
-│   ├── sub_champion_v5.csv                # Base model output
-│   ├── sub_v14_all_star_reactivated.csv   # Reactivated v14 output
-│   └── sub_v14_all_star_synthesis.csv     # Base reference for Triple Crown Opportunity
+│   └── sub_champion_v5.csv                # Base model output
 │
 └── tests/                                 # Pytest test suite (21 unit & integration tests)
 ```

@@ -18,6 +18,7 @@ from sasol_customer_value.config import (
     N_OPPORTUNITY_CLASSES,
     TARGET_FUEL,
     TARGET_OPPORTUNITY,
+    V4_OPP_BIASES,
     ModelVariant,
 )
 from sasol_customer_value.features.hurdles import (
@@ -35,11 +36,21 @@ class OpportunityModel:
 
     def __post_init__(self) -> None:
         if self.variant in [
+            "1",
+            "champion_triple_crown",
+        ]:
+            # Triple Crown committee: Model A (Seed 42), Model B & C (5 Seeds)
+            self.seeds_A = [42]
+            self.seeds_B = list(DEFAULT_BAGGING_SEEDS)
+            self.seeds_C = list(DEFAULT_BAGGING_SEEDS)
+        elif self.variant in [
             "best_zindi",
             "champion_v2",
             "champion_v3",
             "champion_v4",
             "champion_v5",
+            "champion_v5_reactivated",
+            "2",
         ]:
             # 5-Seed multi-architecture committee
             self.seeds_A = list(DEFAULT_BAGGING_SEEDS)
@@ -115,15 +126,17 @@ class OpportunityModel:
         models: list[lgb.LGBMClassifier],
         X_sub: pd.DataFrame,
         X_raw: pd.DataFrame | None = None,
+        biases: dict[str, float] | None = None,
     ) -> np.ndarray:
-        """Average probabilities across models and apply summer log-odds biases."""
+        """Average probabilities across models and apply calibrated log-odds biases."""
         if self.classes_ is None:
             raise RuntimeError(
                 "OpportunityModel must be fitted before making predictions."
             )
         probs = np.mean([m.predict_proba(X_sub) for m in models], axis=0)
+        active_biases = DEFAULT_OPP_BIASES if biases is None else biases
         bias_vec = np.array(
-            [float(DEFAULT_OPP_BIASES.get(str(c), 0.0)) for c in self.classes_],
+            [float(active_biases.get(str(c), 0.0)) for c in self.classes_],
             dtype=np.float64,
         )
         log_probs = np.log(np.clip(probs, 1e-9, 1.0)) + bias_vec
@@ -149,7 +162,14 @@ class OpportunityModel:
             cols_225 = list(X.columns[:225])
             pred_C = self._predict_component(self.models_C, X[cols_225], X_raw=X)
 
-        pred_A = self._predict_component(self.models_A, X[cols_202], X_raw=X)
+        if self.variant in ("1", "champion_triple_crown"):
+            biases_A = V4_OPP_BIASES
+        else:
+            biases_A = DEFAULT_OPP_BIASES
+
+        pred_A = self._predict_component(
+            self.models_A, X[cols_202], X_raw=X, biases=biases_A
+        )
         pred_B = self._predict_component(self.models_B, X[cols_218], X_raw=X)
 
         consensus = []

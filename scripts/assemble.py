@@ -91,43 +91,40 @@ def assemble_submission(
         return output_path
 
     if config_name in ("1", "champion_triple_crown"):
-        v14_act_path = SUBMISSIONS_DIR / "sub_v14_all_star_reactivated.csv"
-        v5_path = SUBMISSIONS_DIR / "sub_champion_v5.csv"
-        if not v14_act_path.exists():
-            v14_base = SUBMISSIONS_DIR / "sub_v14_all_star_synthesis.csv"
-            if v14_base.exists():
-                cache_path = (
-                    PROCESSED_DATA_DIR / "snapshots" / "X_test_2025-12-01.parquet"
-                )
-                X_test = pd.read_parquet(cache_path)
-                df_v14 = pd.read_csv(v14_base)
-                sub_v14_act = apply_lapsed_fuel_reactivation(
-                    df_v14, X_test=X_test, top_k=100
-                )
-                sub_v14_act.to_csv(v14_act_path, index=False)
-            else:
-                raise FileNotFoundError(
-                    f"Missing required base synthesis artifact at: {v14_base}\n"
-                    f"Selection 1 (Triple Crown) requires {v14_base.name} in {SUBMISSIONS_DIR}."
-                )
+        print("=" * 80)
+        print("ASSEMBLING SELECTION 1 (TRIPLE CROWN CHAMPION) FROM RAW DATA NATIVELY")
+        print("=" * 80)
+        preds = train_production_models(
+            config_name="champion_triple_crown", target="all"
+        )
+        df_test = load_test_customers()
+        test_ids = list(df_test[ID_COL].astype(str))
 
-        if not v5_path.exists():
-            assemble_submission(config_name="champion_v5", output_path=v5_path)
+        cache_path = PROCESSED_DATA_DIR / "snapshots" / "X_test_2025-12-01.parquet"
+        if cache_path.exists():
+            X_test = pd.read_parquet(cache_path)
+        else:
+            from sasol_customer_value.data.snapshots import build_features
 
-        sub_v14 = pd.read_csv(v14_act_path)
-        sub_v5 = pd.read_csv(v5_path)
+            df_trans = load_transactions()
+            X_test = build_features(
+                df_trans,
+                cutoff=PUBLIC_HISTORY_END_EXCLUSIVE,
+                customer_ids=pd.Index(test_ids),
+            ).reindex(test_ids)
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            X_test.to_parquet(cache_path)
 
-        sub_tc = pd.DataFrame(
+        sub_raw = pd.DataFrame(
             {
-                ID_COL: sub_v14[ID_COL].values,
-                TARGET_FUEL: sub_v14[TARGET_FUEL].values,
-                TARGET_NONFUEL: sub_v5[TARGET_NONFUEL].values,
-                TARGET_OPPORTUNITY: sub_v14[TARGET_OPPORTUNITY].values,
+                ID_COL: test_ids,
+                TARGET_FUEL: preds[TARGET_FUEL].values,
+                TARGET_NONFUEL: preds[TARGET_NONFUEL].values,
+                TARGET_OPPORTUNITY: preds[TARGET_OPPORTUNITY].values,
             }
         )
-        validate_submission_format(
-            sub_tc, expected_ids=list(sub_tc[ID_COL].astype(str))
-        )
+        sub_tc = apply_lapsed_fuel_reactivation(sub=sub_raw, X_test=X_test, top_k=100)
+        validate_submission_format(sub_tc, expected_ids=test_ids)
         sub_tc.to_csv(output_path, index=False)
         print(
             f"\n[SUCCESS] Selection 1 (Triple Crown) assembled and verified at: {output_path}"
