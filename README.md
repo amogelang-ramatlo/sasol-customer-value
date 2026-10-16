@@ -340,15 +340,14 @@ sasol-customer-value/
 ├── scripts/
 │   ├── assemble.py                        # Master production submission assembler (--config 1 / 2)
 │   ├── evaluate.py                        # 3-Fold embargoed OOT validation harness
-│   ├── train.py                           # Full-history refitting CLI
-│   └── archive/                           # Archived standalone exploratory scripts
+│   └── train.py                           # Full-history refitting CLI
 │
 ├── submissions/                           # Verified competition submissions
 │   ├── sub_champion_triple_crown.csv      # Selection 1 Champion (Live Score: 0.313971)
 │   ├── sub_champion_v5_reactivated.csv    # Selection 2 Benchmark (Live Score: 0.313745)
 │   ├── sub_champion_v5.csv                # Base model output
-│   ├── sub_v14_all_star_synthesis.csv     # Base reference for Triple Crown Opportunity
-│   └── archive/                           # 11 archived intermediate/exploratory tuning runs
+│   ├── sub_v14_all_star_reactivated.csv   # Reactivated v14 output
+│   └── sub_v14_all_star_synthesis.csv     # Base reference for Triple Crown Opportunity
 │
 └── tests/                                 # Pytest test suite (21 unit & integration tests)
 ```
