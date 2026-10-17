@@ -120,7 +120,7 @@ flowchart TD
 ### System Specifications
 - **Operating System:** Platform-independent (Tested on Windows 11, Ubuntu 22.04 LTS, macOS Sonoma).
 - **Python Version:** `Python 3.12` or higher.
-- **Compute Requirements:** Standard consumer CPU (8+ cores recommended, e.g., AMD Ryzen 7 / Intel Core i7); 16 GB RAM minimum. GPU acceleration is supported but **not required** (complete end-to-end production training of all target specialists across 65k historical records runs in ~10–12 minutes on consumer CPU).
+- **Compute Requirements:** Standard consumer CPU (Tested on AMD Ryzen 5 5600H, 6 cores / 12 threads, 8 GB RAM). GPU acceleration is supported but **not required** (complete end-to-end production training of all target specialists across 65k historical records runs in ~10–12 minutes on consumer CPU).
 
 ### Installation via Astral `uv`
 This repository strictly relies on Astral `uv` for deterministic, cryptographically locked environment and dependency management via `pyproject.toml` and `uv.lock`:
@@ -192,8 +192,15 @@ Because their baseline spend in the preceding quarter was R0, their growth hurdl
 The deterministic post-processing heuristic ([`apply_lapsed_fuel_reactivation`](src/sasol_customer_value/models/opportunity.py)):
 1. Filters for established members ($\ge 40$ lifetime litres) with confirmed prior summer holiday activity (`same_season_prior_year_active == 1.0`).
 2. Ranks candidates by a composite reactivation score combining predicted fuel spend ($\text{CLV}_{\text{fuel}} > 0.50$), 6-month activity velocity, and recency.
-3. Reclassifies the top 100 highest-confidence road-trippers from `Inactivity` to `Existing-category growth: Fuel`.
+3. Reclassifies the top $K$ highest-confidence road-trippers (default: $K=100$, fully parameterizable via `--top-k` without changing code) from `Inactivity` to `Existing-category growth: Fuel`.
 4. Restores the true holiday ground-truth prevalence (**27.35%** vs **27.30%** historical summer benchmark), delivering a massive **$+0.00741$** jump in Weighted $F_1$.
+
+> [!TIP]
+> **Configurable Reactivation via CLI:**
+> The reactivation cutoff count is directly exposed via the `--top-k` flag in `scripts/assemble.py`. For example, to reactivate the top 200 candidates instead of the default 100, run:
+> ```bash
+> uv run python scripts/assemble.py --config 1 --top-k 200
+> ```
 
 ---
 
@@ -213,8 +220,11 @@ The deterministic post-processing heuristic ([`apply_lapsed_fuel_reactivation`](
 
 #### Selection 1: Triple Crown Champion (Rank 12/13 Milestone)
 ```bash
+# Standard reproduction (default top-100 reactivation)
 uv run python scripts/assemble.py --config 1
-# (or: uv run python scripts/assemble.py --config champion_triple_crown)
+
+# Optional: customize reactivation count (e.g. top-200) without editing code
+uv run python scripts/assemble.py --config 1 --top-k 200
 ```
 - **Output File:** [`submissions/sub_champion_triple_crown.csv`](submissions/sub_champion_triple_crown.csv)
 - **SHA-256 Checksum:** `49cd6d4fb953f9c26c157e1b403822460e0057ef1d70fec56fb7cd33f3c6eff7` *(Uploaded benchmark parity: `074308f032abf6764b915f056e9d4dc7d01acae22316b3ed7a49c08ca8c4e5f7`)*
@@ -222,8 +232,11 @@ uv run python scripts/assemble.py --config 1
 
 #### Selection 2: Champion V5 Reactivated (Rank 13 Milestone)
 ```bash
+# Standard reproduction (default top-100 reactivation)
 uv run python scripts/assemble.py --config 2
-# (or: uv run python scripts/assemble.py --config champion_v5_reactivated)
+
+# Optional: customize reactivation count (e.g. top-200) without editing code
+uv run python scripts/assemble.py --config 2 --top-k 200
 ```
 - **Output File:** [`submissions/sub_champion_v5_reactivated.csv`](submissions/sub_champion_v5_reactivated.csv)
 - **SHA-256 Checksum:** `7b397e28e35663dc5b800fcc0df65966d409a1f5e698fd50bca96c1fc369fea4`
@@ -239,7 +252,7 @@ uv run python scripts/evaluate.py --config champion_v5
 
 ## 7. Execution Runtime & Hardware Benchmarks
 
-Measured on a standard 8-core CPU (AMD Ryzen 7 7840HS / 16GB RAM):
+Measured on reference test machine: AMD Ryzen 5 5600H (6 physical cores / 12 threads, 8 GB RAM, Windows 11):
 
 | Pipeline Stage | Scope | Execution Time |
 | :--- | :--- | :---: |
@@ -254,20 +267,17 @@ Measured on a standard 8-core CPU (AMD Ryzen 7 7840HS / 16GB RAM):
 
 ## 8. Verified Leaderboard Track Record & Ablation
 
-| Configuration | Fuel RMSE (30%) | Non-Fuel RMSE (30%) | Opp Weighted F1 (40%) | Composite Score | Milestone / Status |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **`best_zindi`** | 0.606304 | 0.751223 | 0.501284 | **0.278530** | Baseline Zindi Champion (Live: 0.31144) |
-| **`champion_v2`** | 0.605101 | 0.750528 | 0.501284 | **0.279274** | Specialist Subspace Bagging |
-| **`champion_v4`** | 0.605759 | 0.750737 | 0.501284 | **0.278930** | Tri-Family Fuel Specialist |
-| **`champion_v5`** | 0.605759 | **0.723648** | 0.539565 | **0.310781** | Tri-Family Fuel + CatBoost Non-Fuel |
-| **`champion_v5_reactivated`** | 0.589527 | **0.723648** | 0.546974 | **0.313745** | **Top 15 Milestone (Rank 13 Breakthrough)** |
-| **`champion_triple_crown`** | **0.589219** | **0.723648** | **0.547227** | **0.313971304** | **ALL-TIME COMPETITION CHAMPION (Rank 12/13)** |
+| Configuration | Fuel RMSE (30%) | Non-Fuel RMSE (30%) | Opp Weighted F1 (40%) | Composite Score | Output Submission File | Milestone / Status |
+| :--- | :---: | :---: | :---: | :---: | :--- | :--- |
+| **`champion_v5`** | 0.605759 | **0.723648** | 0.539565 | **0.310781** | [`sub_champion_v5.csv`](submissions/sub_champion_v5.csv) | Base Tri-Family + CatBoost Model |
+| **`champion_v5_reactivated`** | 0.589527 | **0.723648** | 0.546974 | **0.313745** | [`sub_champion_v5_reactivated.csv`](submissions/sub_champion_v5_reactivated.csv) | **Official Selection 2 (Rank 13 Breakthrough)** |
+| **`champion_triple_crown`** | **0.589219** | **0.723648** | **0.547227** | **0.313971304** | [`sub_champion_triple_crown.csv`](submissions/sub_champion_triple_crown.csv) | **Official Selection 1 (All-Time Champion: Rank 12/13)** |
 
 ### Submission Integrity Checksums (SHA-256)
+All 3 end-to-end generated submission files match these verified SHA-256 checksums:
 - `submissions/sub_champion_triple_crown.csv`: `49cd6d4fb953f9c26c157e1b403822460e0057ef1d70fec56fb7cd33f3c6eff7` *(Uploaded benchmark parity: `074308f032abf6764b915f056e9d4dc7d01acae22316b3ed7a49c08ca8c4e5f7`)*
 - `submissions/sub_champion_v5_reactivated.csv`: `7b397e28e35663dc5b800fcc0df65966d409a1f5e698fd50bca96c1fc369fea4`
 - `submissions/sub_champion_v5.csv`: `f3f286fd3c8ddaece0238eafe05a178a439ee74fe6d055fca7fb62d76ed9a40c`
-- `submissions/sub_champion_zindi.csv`: `dc26b02c73eb4037b8a7e7a87f034495a66473e499758017d42ffa284cae7159`
 
 ---
 

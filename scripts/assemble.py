@@ -27,7 +27,9 @@ from sasol_customer_value.utils.helpers import validate_submission_format
 
 
 def assemble_submission(
-    config_name: ModelVariant, output_path: Path | None = None
+    config_name: ModelVariant,
+    output_path: Path | None = None,
+    top_k: int = 100,
 ) -> Path:
     """Train specialists, assemble submission, and validate compliance."""
     SUBMISSIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -77,7 +79,7 @@ def assemble_submission(
             X_test.to_parquet(cache_path)
 
         sub_v5 = pd.read_csv(v5_path)
-        sub_out = apply_lapsed_fuel_reactivation(sub=sub_v5, X_test=X_test, top_k=100)
+        sub_out = apply_lapsed_fuel_reactivation(sub=sub_v5, X_test=X_test, top_k=top_k)
         validate_submission_format(
             sub_out, expected_ids=list(sub_out[ID_COL].astype(str))
         )
@@ -123,7 +125,7 @@ def assemble_submission(
                 TARGET_OPPORTUNITY: preds[TARGET_OPPORTUNITY].values,
             }
         )
-        sub_tc = apply_lapsed_fuel_reactivation(sub=sub_raw, X_test=X_test, top_k=100)
+        sub_tc = apply_lapsed_fuel_reactivation(sub=sub_raw, X_test=X_test, top_k=top_k)
         validate_submission_format(sub_tc, expected_ids=test_ids)
         sub_tc.to_csv(output_path, index=False)
         print(
@@ -198,7 +200,14 @@ if __name__ == "__main__":
         default=None,
         help="Optional custom output CSV path",
     )
+    parser.add_argument(
+        "--top-k",
+        "--reactivation-top-k",
+        type=int,
+        default=100,
+        help="Number of high-confidence lapsed members to reactivate to Fuel Growth (default: 100, e.g. 200)",
+    )
     args = parser.parse_args()
 
     out = Path(args.output) if args.output else None
-    assemble_submission(config_name=args.config, output_path=out)
+    assemble_submission(config_name=args.config, output_path=out, top_k=args.top_k)
