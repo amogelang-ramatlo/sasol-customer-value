@@ -81,9 +81,9 @@ flowchart TD
     end
 
     subgraph Modeling["3. Specialist Modeling Architecture"]
-        Feat202 --> ModelF["Model F: Fuel Specialist\nTri-Family Bagged Blend (LGB 0.40, CB 0.45, XGB 0.15)\n5 Seeds | Uniform Weights\nBest Live RMSE: 0.589219"]
+        Feat202 --> ModelF["Model F: Fuel Specialist\nSelection 1 (Seed 42 Blend: LGB 0.50, CB 0.30, XGB 0.20): 0.589219\nSelection 2 (5-Seed Bagged Blend: LGB 0.40, CB 0.45, XGB 0.15): 0.589527"]
         Feat218 --> ModelN["Model N: Non-Fuel Specialist\nCatBoost Dominant Regressor (CB 0.95, LGB 0.05)\n5 Seeds | Depth-5 Oblivious Trees\nBest Live RMSE: 0.723648"]
-        Feat225 --> ModelO["Model O: Opportunity Specialist\n3-Subspace Committee (A: 202, B: 218, C: 225)\n5-Seed LightGBM + Summer Festive Calibrated Biases\nBest Live F1: 0.547227"]
+        Feat225 --> ModelO["Model O: Opportunity Specialist\n3-Voter Consensus Committee\nSelection 1: Subspaces A (v4), B (v8), C (v9)\nSelection 2: 5-Seed Bagged Subspaces A, B, C\nBest Live F1: 0.547227"]
     end
 
     subgraph PostProcessing["4. Domain-Driven Holiday Calibration"]
@@ -120,7 +120,7 @@ flowchart TD
 ### System Specifications
 - **Operating System:** Platform-independent (Tested on Windows 11, Ubuntu 22.04 LTS, macOS Sonoma).
 - **Python Version:** `Python 3.12` or higher.
-- **Compute Requirements:** Standard consumer CPU (8+ cores recommended, e.g., AMD Ryzen 7 / Intel Core i7); 16 GB RAM minimum. GPU acceleration is supported but **not required** (entire production training runs in < 90 seconds on CPU).
+- **Compute Requirements:** Standard consumer CPU (8+ cores recommended, e.g., AMD Ryzen 7 / Intel Core i7); 16 GB RAM minimum. GPU acceleration is supported but **not required** (complete end-to-end production training of all target specialists across 65k historical records runs in ~10–12 minutes on consumer CPU).
 
 ### Installation via Astral `uv`
 This repository strictly relies on Astral `uv` for deterministic, cryptographically locked environment and dependency management via `pyproject.toml` and `uv.lock`:
@@ -164,23 +164,25 @@ All ETL logic is centralized in `src/sasol_customer_value/data/`:
 ### 5.1 Model F (`FuelModel`) — Fuel CLV Specialist
 - **Objective:** Continuous regression minimizing RMSE on $z_{\text{fuel}}$.
 - **Feature Subspace:** 202 features focusing on forecourt cadence, fill-up volume distributions, seasonality, and station affinity.
-- **Architecture:** Tri-family bagged blend combining LightGBM (0.40), CatBoost (0.45), and XGBoost (0.15) across 5 random seeds (`[42, 100, 2024, 777, 999]`).
-- **Live Leaderboard RMSE:** **`0.589219`** (Top rank on Zindi).
+- **Architectures:**
+  - **Selection 1 (Triple Crown Champion):** Tri-family blend of LightGBM (0.50), CatBoost (0.30), and XGBoost (0.20) on Seed 42 $\to$ **`0.589219`** Fuel RMSE (all-time best fuel score on Zindi).
+  - **Selection 2 (Champion V5 Reactivated):** 5-seed bagged tri-family blend combining LightGBM (0.40), CatBoost (0.45), and XGBoost (0.15) across seeds `[42, 100, 2024, 777, 999]` $\to$ **`0.589527`** Fuel RMSE.
 
 ### 5.2 Model N (`NonfuelModel`) — Convenience Store Spend Specialist
 - **Objective:** Continuous regression minimizing RMSE on $z_{\text{nonfuel}}$.
 - **Feature Subspace:** 218 features incorporating store basket penetration, category affinities, and zero-spend indicators.
-- **Architecture:** CatBoost-dominated blend (0.95 CatBoost / 0.05 LightGBM) across 5 random seeds (`DEFAULT_BAGGING_SEEDS`). Because retail store spend is 65% zero-inflated, CatBoost's depth-5 symmetric oblivious trees regularize against extreme spend volatility.
-- **Live Leaderboard RMSE:** **`0.723648`** (Best verified score).
+- **Architecture:** CatBoost-dominated blend (0.95 CatBoost / 0.05 LightGBM) across 5 random seeds (`[42, 100, 2024, 777, 999]`). Because retail store spend is 65% zero-inflated, CatBoost's depth-5 symmetric oblivious trees strongly regularize against extreme spend volatility.
+- **Live Leaderboard RMSE:** **`0.723648`** (Identical in both Selection 1 and Selection 2; best verified non-fuel spend score).
 
 ### 5.3 Model O (`OpportunityModel`) — Multiclass Specialist
 - **Objective:** 17-class classification maximizing Multiclass Weighted $F_1$.
-- **Architecture:** 3-Subspace Committee trained on mature loyalty history (`2024-10-01` onwards: 12 snapshots), eliminating the churn distortion of early program snapshots:
-  - **Subspace A:** Core 202 features, 5-seed bagged LightGBM.
-  - **Subspace B:** 218 features (zero-spend separation), 5-seed bagged LightGBM.
-  - **Subspace C:** All 225 features (commuter personas, diurnal velocity), 5-seed bagged LightGBM.
-- **Holiday Calibration & Ensembling:** Applied summer festive calibrated log-odds biases (`DEFAULT_OPP_BIASES`) before reaching consensus majority vote.
-- **Live Leaderboard Weighted $F_1$:** **`0.547227`** (Best verified score).
+- **Architectures:**
+  - **Selection 1 (Triple Crown Committee):** 3-voter majority consensus committee:
+    - **Voter 1 (Subspace B):** 218 features, 5-seed bagged LightGBM with summer festive log-odds priors (`DEFAULT_OPP_BIASES`).
+    - **Voter 2 (Subspace A):** 202 features, Seed 42 LightGBM with calibrated priors (`V4_OPP_BIASES`).
+    - **Voter 3 (Subspace C):** 225 features, 5-seed bagged LightGBM with summer festive log-odds priors (`DEFAULT_OPP_BIASES`).
+    - **Consensus & Post-Processing:** Majority vote (Subspace B tie-breaker) + Lapsed road-tripper fuel reactivation $\to$ **`0.547227`** Weighted $F_1$.
+  - **Selection 2 (Champion V5 Reactivated):** 3-subspace committee across Subspaces A, B, and C trained on mature history with 5-seed bagging, festive priors, and lapsed road-tripper fuel reactivation $\to$ **`0.546974`** Weighted $F_1$.
 
 ### 5.4 The Summer Road-Trip Reactivation Discovery
 Standard tree classifiers send customers with `days_since_last_visit > 90` to `Inactivity`. However, ground truth analysis of December holiday quarters revealed that **over 30.6% of lapsed loyalty members return for holiday travel**. 
@@ -215,7 +217,7 @@ uv run python scripts/assemble.py --config 1
 # (or: uv run python scripts/assemble.py --config champion_triple_crown)
 ```
 - **Output File:** [`submissions/sub_champion_triple_crown.csv`](submissions/sub_champion_triple_crown.csv)
-- **SHA-256 Checksum:** `074308f032abf6764b915f056e9d4dc7d01acae22316b3ed7a49c08ca8c4e5f7`
+- **SHA-256 Checksum:** `49cd6d4fb953f9c26c157e1b403822460e0057ef1d70fec56fb7cd33f3c6eff7` *(Uploaded benchmark parity: `074308f032abf6764b915f056e9d4dc7d01acae22316b3ed7a49c08ca8c4e5f7`)*
 - **Live Leaderboard Score:** **`0.313971304`**
 
 #### Selection 2: Champion V5 Reactivated (Rank 13 Milestone)
@@ -242,11 +244,11 @@ Measured on a standard 8-core CPU (AMD Ryzen 7 7840HS / 16GB RAM):
 | Pipeline Stage | Scope | Execution Time |
 | :--- | :--- | :---: |
 | **Test Feature Extraction** | 5,488 test customers (225 features) | **~13.0 s** |
-| **Model F Training (Fuel)** | Full historical dataset (65k samples, 5 seeds) | **~24.5 s** |
-| **Model N Training (Non-Fuel)** | Full historical dataset (65k samples, 5 seeds) | **~18.2 s** |
-| **Model O Training (Opportunity)**| Full historical dataset (65k samples, 15 models) | **~34.0 s** |
-| **Holiday Reactivation & Assembly**| Scoring, sorting, tie-breaking, compliance check | **~1.2 s** |
-| **Total End-to-End Assembly** | Raw data to verified submission CSV | **~90.9 s** |
+| **Model F Training (Fuel)** | Historical snapshot pool (65,722 rows, 202 features) | **~24.6 s** |
+| **Model N Training (Non-Fuel)** | Historical snapshot pool (65,722 rows, 218 features, 5 seeds) | **~86.4 s** |
+| **Model O Training (Opportunity)**| Historical snapshot pool (65,722 rows, 11-15 models) | **~548.4 s** |
+| **Holiday Reactivation & Compliance**| Scoring, road-trip filtering, 5-point validation | **~1.2 s** |
+| **Total End-to-End Assembly** | Raw transactions to final verified CSV | **~11.2 min (673.6 s)** |
 
 ---
 
@@ -262,7 +264,7 @@ Measured on a standard 8-core CPU (AMD Ryzen 7 7840HS / 16GB RAM):
 | **`champion_triple_crown`** | **0.589219** | **0.723648** | **0.547227** | **0.313971304** | **ALL-TIME COMPETITION CHAMPION (Rank 12/13)** |
 
 ### Submission Integrity Checksums (SHA-256)
-- `submissions/sub_champion_triple_crown.csv`: `074308f032abf6764b915f056e9d4dc7d01acae22316b3ed7a49c08ca8c4e5f7`
+- `submissions/sub_champion_triple_crown.csv`: `49cd6d4fb953f9c26c157e1b403822460e0057ef1d70fec56fb7cd33f3c6eff7` *(Uploaded benchmark parity: `074308f032abf6764b915f056e9d4dc7d01acae22316b3ed7a49c08ca8c4e5f7`)*
 - `submissions/sub_champion_v5_reactivated.csv`: `7b397e28e35663dc5b800fcc0df65966d409a1f5e698fd50bca96c1fc369fea4`
 - `submissions/sub_champion_v5.csv`: `f3f286fd3c8ddaece0238eafe05a178a439ee74fe6d055fca7fb62d76ed9a40c`
 - `submissions/sub_champion_zindi.csv`: `dc26b02c73eb4037b8a7e7a87f034495a66473e499758017d42ffa284cae7159`
@@ -278,7 +280,7 @@ The platform enforces strict automated software engineering standards:
 uv run ruff check src/ tests/ scripts/
 uv run ruff format --check src/ tests/ scripts/
 
-# Static type checking across all 33 source files
+# Static type checking across all 30 source files
 uv run mypy src/ tests/ scripts/
 
 # Full automated test suite (21 unit and integration tests)
