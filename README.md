@@ -312,7 +312,6 @@ Every generated submission is validated by [`validate_submission_format`](src/sa
 ```text
 sasol-customer-value/
 ├── README.md                              # Authoritative documentation (Zindi guidelines compliant)
-├── GEMINI.md                              # System architecture blueprint & single source of truth
 ├── pyproject.toml                         # Project metadata, dependencies, and build config
 ├── uv.lock                                # Deterministic cryptographic lockfile
 │

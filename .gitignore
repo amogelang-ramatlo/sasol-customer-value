@@ -67,3 +67,5 @@ catboost_info/
 scratch/
 temp/
 reproducibility_sandbox/
+*.bak
+GEMINI.md
